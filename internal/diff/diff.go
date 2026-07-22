@@ -67,5 +67,66 @@ func presence(a, b model.Entity) PresenceDiff {
 // Entities computes the two-level diff. If kind is non-empty, field-level
 // comparison is restricted to that kind; otherwise every shared kind is compared.
 func Entities(a, b model.Entity, kind string) Result {
-	return Result{Presence: presence(a, b), Fields: []KindFieldDiff{}}
+	pd := presence(a, b)
+	kinds := pd.InBoth
+	if kind != "" {
+		kinds = nil
+		for _, k := range pd.InBoth {
+			if k == kind {
+				kinds = []string{kind}
+			}
+		}
+	}
+	fields := []KindFieldDiff{}
+	for _, k := range kinds {
+		aa, _ := a.Aspect(k)
+		ba, _ := b.Aspect(k)
+		fields = append(fields, fieldDiff(k, aa, ba))
+	}
+	return Result{Presence: pd, Fields: fields}
+}
+
+func fieldsEqual(a, b model.Field) bool {
+	if a.Type != b.Type || a.Nullable != b.Nullable || a.References != b.References {
+		return false
+	}
+	ta := append([]string(nil), a.Tags...)
+	tb := append([]string(nil), b.Tags...)
+	sort.Strings(ta)
+	sort.Strings(tb)
+	if len(ta) != len(tb) {
+		return false
+	}
+	for i := range ta {
+		if ta[i] != tb[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func fieldDiff(kind string, a, b model.Aspect) KindFieldDiff {
+	byName := func(fs []model.Field) map[string]model.Field {
+		m := map[string]model.Field{}
+		for _, f := range fs {
+			m[f.Name] = f
+		}
+		return m
+	}
+	am, bm := byName(a.Fields), byName(b.Fields)
+	fd := KindFieldDiff{Kind: kind, OnlyInA: []model.Field{}, OnlyInB: []model.Field{}, Changed: []FieldChange{}}
+	for _, f := range a.Fields {
+		bf, ok := bm[f.Name]
+		if !ok {
+			fd.OnlyInA = append(fd.OnlyInA, f)
+		} else if !fieldsEqual(f, bf) {
+			fd.Changed = append(fd.Changed, FieldChange{Name: f.Name, A: f, B: bf})
+		}
+	}
+	for _, f := range b.Fields {
+		if _, ok := am[f.Name]; !ok {
+			fd.OnlyInB = append(fd.OnlyInB, f)
+		}
+	}
+	return fd
 }
