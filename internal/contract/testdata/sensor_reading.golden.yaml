@@ -1,0 +1,14 @@
+entity: SensorReading
+description: a device reading
+aspects:
+    - kind: sql
+      source_ref: db/schema.sql:42
+      fields:
+        - name: device_id
+          type: VARCHAR(64)
+          nullable: false
+          tags:
+            - primary_key
+        - name: value
+          type: DOUBLE
+          nullable: true
