@@ -1,0 +1,40 @@
+@import "@fontsource/space-grotesk/500.css";
+@import "@fontsource/space-grotesk/600.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+
+:root {
+  --canvas: #e7eaee;
+  --body: #fbfcfd;
+  --ink: #151c27;
+  --steel: #5b6672;
+  --hairline: #c4ccd4;
+  --revision: #b23b2e;
+
+  --k-protobuf: #d9e6e4;
+  --k-sql: #dde2ec;
+  --k-json: #eee5d4;
+  --k-cpp_struct: #dde7dd;
+  --k-pydantic: #eddde2;
+  --k-sqlalchemy: #e8e2d6;
+  --k-typescript: #e3dfe9;
+  --k-avro: #dde5e7;
+  --k-unknown: #e4e7ea;
+
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --unit: 4px;
+}
+
+* { box-sizing: border-box; }
+html, body, #app { height: 100%; margin: 0; }
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: var(--canvas);
+  font-feature-settings: "tnum" 1;
+}
