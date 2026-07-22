@@ -1,11 +1,13 @@
 <script setup lang="ts">
-// Canvas + Toolbar are wired in later tasks; the scaffold renders a shell.
+import Toolbar from "./components/Toolbar.vue";
+import Canvas from "./components/Canvas.vue";
 </script>
 
 <template>
   <div class="app-shell">
     <header class="titlebar">Cartographer</header>
-    <main class="stage"></main>
+    <Toolbar />
+    <main class="stage"><Canvas /></main>
   </div>
 </template>
 
