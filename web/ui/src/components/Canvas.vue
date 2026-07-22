@@ -6,6 +6,7 @@ import { Controls } from "@vue-flow/controls";
 import { MiniMap } from "@vue-flow/minimap";
 import EntityCard from "./EntityCard.vue";
 import { useMap } from "../composables/useMap";
+import { projectRegions } from "../lib/regions";
 import "@vue-flow/core/dist/style.css";
 import "@vue-flow/core/dist/theme-default.css";
 import "@vue-flow/controls/dist/style.css";
@@ -44,13 +45,26 @@ const entityNodes = computed<Node[]>(() =>
   }),
 );
 
-const nodes = computed<Node[]>(() => entityNodes.value);
+const regionNodes = computed<Node[]>(() =>
+  projectRegions(map.entities.value, map.positions.value, map.projects.value).map((r) => ({
+    id: `region:${r.slug}`,
+    type: "region",
+    zIndex: -1,
+    draggable: false,
+    selectable: false,
+    position: { x: r.x, y: r.y },
+    data: { label: r.label, w: r.w, h: r.h },
+  })),
+);
+
+const nodes = computed<Node[]>(() => [...regionNodes.value, ...entityNodes.value]);
 const edges = computed<Edge[]>(() =>
   map.edges.value.map((e) => ({ ...e, type: "default", animated: false })),
 );
 
 let saveTimer: number | null = null;
 onNodeDragStop(({ node }) => {
+  if (node.type !== "entity") return;
   // grid-quantize (multiples of 8) and debounce the persist
   const gx = Math.round(node.position.x / 8) * 8;
   const gy = Math.round(node.position.y / 8) * 8;
@@ -80,6 +94,11 @@ onUnmounted(() => map.stopPolling());
     <template #node-entity="{ data }">
       <EntityCard :data="data" />
     </template>
+    <template #node-region="{ data }">
+      <div class="region" :style="{ width: data.w + 'px', height: data.h + 'px' }">
+        <span class="region-label">{{ data.label }}</span>
+      </div>
+    </template>
     <Background :gap="16" :size="1" pattern-color="var(--hairline)" />
     <Controls />
     <MiniMap />
@@ -94,6 +113,27 @@ onUnmounted(() => map.stopPolling());
 .vue-flow__node-entity.selected .card {
   outline: 2px solid var(--revision);
   outline-offset: 1px;
+}
+.vue-flow__node-region {
+  pointer-events: none;
+}
+.region {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  pointer-events: none;
+}
+.region-label {
+  position: absolute;
+  top: -22px;
+  left: 0;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--steel);
 }
 .vue-flow__edge-path {
   stroke: var(--hairline);
