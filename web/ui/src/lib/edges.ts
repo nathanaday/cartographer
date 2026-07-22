@@ -3,11 +3,13 @@ import type { Entity, FlowEdge } from "../types/api";
 const nodeId = (e: { project: string; name: string }) => `${e.project}/${e.name}`;
 
 // edgesFrom derives relationship edges from fields whose `references` names
-// another entity ("OtherEntity" or "OtherEntity.field"). A reference to an
-// entity that does not exist in the map is dropped (dangling refs are not drawn).
+// another entity ("OtherEntity" or "OtherEntity.field"). References resolve
+// within the source entity's own project, since different projects may
+// legitimately contain entities with the same name. A reference that does
+// not resolve to an existing node in the same project is dropped (dangling
+// refs are not drawn).
 export function edgesFrom(entities: Entity[]): FlowEdge[] {
-  const byName = new Map<string, Entity>();
-  for (const e of entities) byName.set(e.name, e);
+  const ids = new Set(entities.map((e) => nodeId(e)));
 
   const edges: FlowEdge[] = [];
   const seen = new Set<string>();
@@ -16,12 +18,12 @@ export function edgesFrom(entities: Entity[]): FlowEdge[] {
       for (const f of a.fields) {
         if (!f.references) continue;
         const targetName = f.references.split(".")[0];
-        const target = byName.get(targetName);
-        if (!target) continue;
-        const id = `${nodeId(e)}->${nodeId(target)}`;
+        const targetId = `${e.project}/${targetName}`;
+        if (!ids.has(targetId)) continue;
+        const id = `${nodeId(e)}->${targetId}`;
         if (seen.has(id)) continue;
         seen.add(id);
-        edges.push({ id, source: nodeId(e), target: nodeId(target) });
+        edges.push({ id, source: nodeId(e), target: targetId });
       }
     }
   }

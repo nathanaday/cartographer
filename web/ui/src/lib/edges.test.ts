@@ -26,4 +26,16 @@ describe("edgesFrom", () => {
     const entities = [ent("p", "A", ["B.x", "B.y"]), ent("p", "B", [])];
     expect(edgesFrom(entities)).toHaveLength(1);
   });
+
+  it("resolves references within the source project", () => {
+    const entities = [
+      ent("p3-edge", "DataObject", ["Geometry.kind"]),
+      ent("p3-edge", "Geometry", []),
+      ent("p3-cloud", "Geometry", []),
+    ];
+    const edges = edgesFrom(entities);
+    expect(edges).toHaveLength(1);
+    expect(edges[0].target).toBe("p3-edge/Geometry");
+    expect(edges[0].target).not.toBe("p3-cloud/Geometry");
+  });
 });
