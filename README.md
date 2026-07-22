@@ -1,25 +1,15 @@
 # Cartographer
 
 A schema is the backbone of an application, but it rarely lives in one place. The
-same object shows up as a SQL table, a C++ struct, a `.proto` message, a JSON
-payload on the wire, a Pydantic model in another service — and as a system grows,
-those representations drift apart. There is no single record of what an object
-*actually is* in each place, so reconciling the differences is slow, manual, and
-easy to get wrong.
+same object shows up as a SQL table, C++ struct, `.proto` message, JSON
+payloa — and as a system grows, those representations drift apart.
 
-Cartographer maps that landscape. You register each object once and attach the
-representations that genuinely exist for it in the code. The result is a local,
-authoritative picture of how every object is expressed across languages and
-services — one you can query, compare across projects, export as a contract, and
-view on a canvas.
+Cartographer maps the schema landscape. It provieds an MCP tool set that enables
+an LLM to set out and "map" your codebase schema. Objects are consolidated into
+this central format where they can be displayed and analyzed on a canvas.
 
 It is deliberately a documentation tool, not a code generator: it records the
-representations that exist, and never invents ones that don't. Discovery is meant
-to be driven by an LLM through the built-in MCP server — point Claude Code at a
-repository and have it map every schema object it finds.
-
-Cartographer is local-first and in active development. Today it ships the schema
-store, the MCP server, and a read-only web canvas.
+representations that exist, and never invents ones that don't.
 
 ## How it fits together
 
