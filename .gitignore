@@ -41,6 +41,11 @@ coverage.*
 # Built server binary (if produced via `go build -o`)
 /mcp/server
 
+# Built web SPA (embedded at build time); keep the placeholder so go:embed matches
+/web/ui/dist/*
+!/web/ui/dist/.gitkeep
+/web/cartographer-web
+
 # Agent working docs
 # ==================
 /CLAUDE.md
