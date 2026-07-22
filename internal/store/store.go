@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/nathanaday/cartographer/internal/model"
@@ -117,4 +118,80 @@ func (s *Store) getEntityLocked(project, name string) (model.Entity, error) {
 		return model.Entity{}, fmt.Errorf("%q: %w", name, ErrEntityNotFound)
 	}
 	return ent, nil
+}
+
+// SetAspect creates or replaces (by kind) one aspect on an existing entity.
+func (s *Store) SetAspect(project, entity string, aspect model.Aspect) error {
+	if aspect.Kind == "" {
+		return errors.New("aspect kind must not be empty")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ent, err := s.getEntityLocked(project, entity)
+	if err != nil {
+		return err
+	}
+	replaced := false
+	for i := range ent.Aspects {
+		if ent.Aspects[i].Kind == aspect.Kind {
+			ent.Aspects[i] = aspect
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		ent.Aspects = append(ent.Aspects, aspect)
+	}
+	pslug := s.projectSlug(project)
+	if err := writeEntity(s.cfg, pslug, ent); err != nil {
+		return err
+	}
+	s.entities[pslug][ent.Name] = ent
+	return nil
+}
+
+// RemoveAspect deletes one aspect (and its sidecar) from an entity.
+func (s *Store) RemoveAspect(project, entity, kind string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ent, err := s.getEntityLocked(project, entity)
+	if err != nil {
+		return err
+	}
+	idx := -1
+	for i := range ent.Aspects {
+		if ent.Aspects[i].Kind == kind {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		return fmt.Errorf("%q: %w", kind, ErrAspectNotFound)
+	}
+	ent.Aspects = append(ent.Aspects[:idx], ent.Aspects[idx+1:]...)
+	pslug := s.projectSlug(project)
+	if err := os.Remove(filepath.Join(entityDir(s.cfg, pslug, Slugify(ent.Name)), RawFilename(kind))); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("remove sidecar: %w", err)
+	}
+	if err := writeEntity(s.cfg, pslug, ent); err != nil {
+		return err
+	}
+	s.entities[pslug][ent.Name] = ent
+	return nil
+}
+
+// RemoveEntity deletes an entity directory and removes it from the index.
+func (s *Store) RemoveEntity(project, name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ent, err := s.getEntityLocked(project, name)
+	if err != nil {
+		return err
+	}
+	pslug := s.projectSlug(project)
+	if err := os.RemoveAll(entityDir(s.cfg, pslug, Slugify(ent.Name))); err != nil {
+		return fmt.Errorf("remove entity dir: %w", err)
+	}
+	delete(s.entities[pslug], name)
+	return nil
 }
