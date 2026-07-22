@@ -12,17 +12,24 @@ import "@vue-flow/controls/dist/style.css";
 import "@vue-flow/minimap/dist/style.css";
 
 const map = useMap();
-const { onNodeDragStop, onMove, viewport } = useVueFlow();
+const { onNodeDragStop, onMove, onNodeDoubleClick, setCenter, viewport } = useVueFlow();
 
 // zoom -> level of detail
-const lod = ref<"full" | "headers" | "chip">("full");
+const lod = ref<"full" | "headers" | "chip">("chip");
 function lodForZoom(z: number): "full" | "headers" | "chip" {
   if (z >= 0.8) return "full";
-  if (z >= 0.4) return "headers";
+  if (z >= 0.45) return "headers";
   return "chip";
 }
+const chipScale = computed(() => Math.min(1 / viewport.value.zoom, 5));
 onMove(() => {
   lod.value = lodForZoom(viewport.value.zoom);
+});
+onNodeDoubleClick(({ node }) => {
+  if (node.type !== "entity") return;
+  const w = node.dimensions?.width ?? 340;
+  const h = node.dimensions?.height ?? 100;
+  void setCenter(node.position.x + w / 2, node.position.y + h / 2, { zoom: 1, duration: 400 });
 });
 
 const entityNodes = computed<Node[]>(() =>
@@ -37,34 +44,7 @@ const entityNodes = computed<Node[]>(() =>
   }),
 );
 
-const labelNodes = computed<Node[]>(() =>
-  map.projects.value.flatMap((project) => {
-    const xs: number[] = [];
-    const ys: number[] = [];
-    for (const e of map.entities.value) {
-      if (e.project !== project.slug) continue;
-      const pos = map.positions.value[`${project.slug}/${e.name}`];
-      if (!pos) continue;
-      xs.push(pos.x);
-      ys.push(pos.y);
-    }
-    if (xs.length === 0) return [];
-    const minX = Math.min(...xs);
-    const minY = Math.min(...ys);
-    return [
-      {
-        id: `label:${project.slug}`,
-        type: "projectLabel",
-        position: { x: minX, y: minY - 48 },
-        data: { label: project.name || project.slug },
-        draggable: false,
-        selectable: false,
-      },
-    ];
-  }),
-);
-
-const nodes = computed<Node[]>(() => [...labelNodes.value, ...entityNodes.value]);
+const nodes = computed<Node[]>(() => entityNodes.value);
 const edges = computed<Edge[]>(() =>
   map.edges.value.map((e) => ({ ...e, type: "default", animated: false })),
 );
@@ -83,17 +63,22 @@ onNodeDragStop(({ node }) => {
 onMounted(async () => {
   await map.load();
   map.startPolling();
+  lod.value = lodForZoom(viewport.value.zoom); // after fit-view-on-init
 });
 onUnmounted(() => map.stopPolling());
 </script>
 
 <template>
-  <VueFlow :nodes="nodes" :edges="edges" :min-zoom="0.15" :max-zoom="2" fit-view-on-init>
+  <VueFlow
+    :nodes="nodes"
+    :edges="edges"
+    :min-zoom="0.05"
+    :max-zoom="2"
+    fit-view-on-init
+    :style="{ '--chip-scale': String(chipScale) }"
+  >
     <template #node-entity="{ data }">
       <EntityCard :data="data" />
-    </template>
-    <template #node-projectLabel="{ data }">
-      <div class="project-label">{{ data.label }}</div>
     </template>
     <Background :gap="16" :size="1" pattern-color="var(--hairline)" />
     <Controls />
@@ -102,15 +87,9 @@ onUnmounted(() => map.stopPolling());
 </template>
 
 <style>
-.vue-flow__node-projectLabel {
-  pointer-events: none;
-}
-.project-label {
-  font-family: var(--font-display);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--steel);
-  white-space: nowrap;
+.chip {
+  transform: scale(var(--chip-scale, 1));
+  transform-origin: top left;
 }
 .vue-flow__node-entity.selected .card {
   outline: 2px solid var(--revision);
