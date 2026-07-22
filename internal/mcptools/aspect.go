@@ -32,14 +32,21 @@ type SetAspectOutput struct {
 	Kind    string `json:"kind"`
 }
 
-func (h *Handlers) SetAspect(ctx context.Context, req *mcp.CallToolRequest, in SetAspectInput) (*mcp.CallToolResult, SetAspectOutput, error) {
-	fields := make([]model.Field, 0, len(in.Fields))
-	for _, f := range in.Fields {
-		fields = append(fields, model.Field{
+// fieldsToModel maps tool-input fields to the store's field model. Shared by
+// SetAspect and RegisterEntity's inline aspects so both map fields identically.
+func fieldsToModel(ins []FieldInput) []model.Field {
+	out := make([]model.Field, 0, len(ins))
+	for _, f := range ins {
+		out = append(out, model.Field{
 			Name: f.Name, Type: f.Type, Nullable: f.Nullable,
 			Tags: f.Tags, References: f.References, Note: f.Note,
 		})
 	}
+	return out
+}
+
+func (h *Handlers) SetAspect(ctx context.Context, req *mcp.CallToolRequest, in SetAspectInput) (*mcp.CallToolResult, SetAspectOutput, error) {
+	fields := fieldsToModel(in.Fields)
 	aspect := model.Aspect{Kind: in.Kind, Raw: in.Raw, SourceRef: in.SourceRef, Fields: fields}
 	if err := h.Store.SetAspect(in.Project, in.Entity, aspect); err != nil {
 		return nil, SetAspectOutput{}, err

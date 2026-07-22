@@ -18,7 +18,7 @@ func Register(server *mcp.Server, st *store.Store) {
 	h := &Handlers{Store: st}
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "register_entity",
-		Description: "Upsert an entity shell in a project (creating the project on first use). Existing aspects are preserved; only the description is updated. Call this before set_aspect.",
+		Description: "Register (upsert) an object in a project, creating the project on first use — and register its representations in the same call via `aspects` (each is create-or-replace by kind: raw source text plus normalized fields). An entity without aspects is an incomplete stub that renders as an empty shell on the canvas; always include the representations you found. Existing aspects of kinds you don't mention are preserved.",
 	}, h.RegisterEntity)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_entity",
@@ -26,7 +26,7 @@ func Register(server *mcp.Server, st *store.Store) {
 	}, h.GetEntity)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "set_aspect",
-		Description: "Create or replace (by kind) one representation aspect on an existing entity: its raw source text plus normalized fields (name, type as written, nullable, tags like primary_key/foreign_key, and references for foreign keys). Replace semantics — re-registering a kind overwrites it.",
+		Description: "Add or replace (by kind) ONE representation on an existing entity — the targeted-update tool for correcting or extending a single aspect after registration. For initial registration prefer register_entity with inline aspects.",
 	}, h.SetAspect)
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "remove_aspect",
