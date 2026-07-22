@@ -36,4 +36,8 @@ func Register(server *mcp.Server, st *store.Store) {
 		Name:        "remove_entity",
 		Description: "Remove an entity and all its aspects from a project.",
 	}, h.RemoveEntity)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "list_entities",
+		Description: "List entities with their kinds. Optionally filter to one project and/or to entities that have a given aspect kind (e.g. kind=protobuf shows only entities with a protobuf representation).",
+	}, h.ListEntities)
 }
