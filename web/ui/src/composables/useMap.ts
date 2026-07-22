@@ -63,10 +63,17 @@ async function putPinned(slug: string): Promise<void> {
   await apiPut(`/api/projects/${slug}/layout`, perProject);
 }
 
+// pinPositions merges every update into pinned.value in one assignment, then
+// PUTs each affected project's pinned map once.
+async function pinPositions(updates: Record<string, XY>): Promise<void> {
+  pinned.value = { ...pinned.value, ...updates };
+  const slugs = new Set(Object.keys(updates).map((id) => id.split("/")[0]));
+  for (const slug of slugs) await putPinned(slug);
+}
+
 // savePosition pins one card (user-moved) and persists only pinned entries.
 async function savePosition(nodeId: string, xy: XY): Promise<void> {
-  pinned.value = { ...pinned.value, [nodeId]: xy };
-  await putPinned(nodeId.split("/")[0]);
+  await pinPositions({ [nodeId]: xy });
 }
 
 // resetLayout unpins every card and clears each project's layout file.
@@ -88,6 +95,7 @@ export function useMap() {
     startPolling,
     stopPolling,
     savePosition,
+    pinPositions,
     resetLayout,
   };
 }

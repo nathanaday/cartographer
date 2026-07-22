@@ -47,4 +47,10 @@ describe("EntityCard", () => {
     const w = mount(EntityCard, { props: { data: { entity: empty, lod: "full", kindFilter: null } } });
     expect(w.text()).toContain("no representations recorded");
   });
+
+  it("shows the empty state row at headers tier for zero-aspect entities", () => {
+    const empty: Entity = { project: "p", name: "Shell", aspects: [] };
+    const w = mount(EntityCard, { props: { data: { entity: empty, lod: "headers", kindFilter: null } } });
+    expect(w.text()).toContain("no representations recorded");
+  });
 });

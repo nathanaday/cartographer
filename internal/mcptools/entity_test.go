@@ -141,6 +141,35 @@ func TestRegisterEntityWithoutAspectsUnchangedBehavior(t *testing.T) {
 	}
 }
 
+func TestRegisterEntityInlineAspectsPartialApply(t *testing.T) {
+	ctx := context.Background()
+	session, st := newSession(t)
+	res, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "register_entity",
+		Arguments: map[string]any{
+			"project": "edge-app", "name": "VideoClip",
+			"aspects": []map[string]any{
+				{"kind": "sql", "raw": "ok"},
+				{"kind": "", "raw": "bad"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("call: %v", err)
+	}
+	if !res.IsError {
+		t.Fatal("expected error result for the invalid second aspect")
+	}
+	e, err := st.GetEntity("edge-app", "VideoClip")
+	if err != nil {
+		t.Fatalf("entity not stored despite partial apply: %v", err)
+	}
+	sql, ok := e.Aspect("sql")
+	if !ok || sql.Raw != "ok" {
+		t.Fatalf("valid sql aspect should have been applied before the error: %+v", e.Aspects)
+	}
+}
+
 func TestRegisterEntityInlineAspectEmptyKindErrors(t *testing.T) {
 	ctx := context.Background()
 	session, _ := newSession(t)

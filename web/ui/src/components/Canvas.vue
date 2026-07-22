@@ -7,6 +7,7 @@ import { MiniMap } from "@vue-flow/minimap";
 import EntityCard from "./EntityCard.vue";
 import { useMap } from "../composables/useMap";
 import { projectRegions } from "../lib/regions";
+import type { XY } from "../types/api";
 import "@vue-flow/core/dist/style.css";
 import "@vue-flow/core/dist/theme-default.css";
 import "@vue-flow/controls/dist/style.css";
@@ -81,16 +82,19 @@ const edges = computed<Edge[]>(() =>
   map.edges.value.map((e) => ({ ...e, type: "default", animated: false })),
 );
 
-let saveTimer: number | null = null;
-onNodeDragStop(({ node }) => {
-  if (node.type !== "entity") return;
-  // grid-quantize (multiples of 8) and debounce the persist
-  const gx = Math.round(node.position.x / 8) * 8;
-  const gy = Math.round(node.position.y / 8) * 8;
-  if (saveTimer !== null) window.clearTimeout(saveTimer);
-  saveTimer = window.setTimeout(() => {
-    void map.savePosition(node.id, { x: gx, y: gy });
-  }, 300);
+onNodeDragStop(({ node, nodes }) => {
+  const dragged = (nodes && nodes.length > 0 ? nodes : [node]).filter((n) => n.type === "entity");
+  if (dragged.length === 0) return;
+  // grid-quantize (multiples of 8) and pin every dragged card immediately —
+  // no debounce, so a fast second drop can't clear an earlier card's pin.
+  const updates: Record<string, XY> = {};
+  for (const n of dragged) {
+    updates[n.id] = {
+      x: Math.round(n.position.x / 8) * 8,
+      y: Math.round(n.position.y / 8) * 8,
+    };
+  }
+  void map.pinPositions(updates);
 });
 
 onMounted(async () => {

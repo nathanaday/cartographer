@@ -63,6 +63,31 @@ describe("useMap", () => {
     expect(m.positions.value["p3-edge/Geometry"]).not.toEqual(geometryBefore);   // reflowed
   });
 
+  it("pinPositions merges multiple updates into one PUT per project", async () => {
+    let putBody: unknown = null;
+    let putCount = 0;
+    server.use(
+      http.put("/api/projects/p3-edge/layout", async ({ request }) => {
+        putCount += 1;
+        putBody = await request.json();
+        return HttpResponse.json({ saved: true });
+      }),
+    );
+    const m = useMap();
+    await m.load();
+    await m.pinPositions({
+      "p3-edge/DataObject": { x: 10, y: 20 },
+      "p3-edge/Geometry": { x: 30, y: 40 },
+    });
+    expect(putCount).toBe(1);
+    expect(putBody).toEqual({
+      DataObject: { x: 10, y: 20 },
+      Geometry: { x: 30, y: 40 },
+    });
+    expect(m.positions.value["p3-edge/DataObject"]).toEqual({ x: 10, y: 20 });
+    expect(m.positions.value["p3-edge/Geometry"]).toEqual({ x: 30, y: 40 });
+  });
+
   it("resetLayout clears pins and PUTs empty maps", async () => {
     const bodies: Record<string, unknown> = {};
     server.use(
