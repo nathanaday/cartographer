@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import { VueFlow, useVueFlow, Panel, type Node, type Edge } from "@vue-flow/core";
 import { Background } from "@vue-flow/background";
 import { Controls } from "@vue-flow/controls";
@@ -26,7 +26,12 @@ function onReset(): void {
   }
   resetArmed.value = false;
   if (armTimer !== null) window.clearTimeout(armTimer);
-  void map.resetLayout().then(() => fitView({ padding: 0.1, duration: 300 }));
+  void map.resetLayout().then(async () => {
+    // let the new masonry positions propagate into VueFlow's node store and
+    // the pane re-measure before fitting, or fitView sees stale bounds.
+    await nextTick();
+    requestAnimationFrame(() => fitView({ padding: 0.1 }));
+  });
 }
 
 // zoom -> level of detail
@@ -119,7 +124,7 @@ onUnmounted(() => {
     <Background :gap="16" :size="1" pattern-color="var(--hairline)" />
     <Controls />
     <Panel position="top-right" class="canvas-actions">
-      <button @click="fitView({ padding: 0.1, duration: 300 })">fit</button>
+      <button @click="fitView({ padding: 0.1 })">fit</button>
       <button :class="{ armed: resetArmed }" @click="onReset">
         {{ resetArmed ? "confirm reset" : "reset layout" }}
       </button>
