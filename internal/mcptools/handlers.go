@@ -24,4 +24,8 @@ func Register(server *mcp.Server, st *store.Store) {
 		Name:        "get_entity",
 		Description: "Return one entity's full detail: every aspect with its kind, source_ref, raw text, and normalized fields.",
 	}, h.GetEntity)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "set_aspect",
+		Description: "Create or replace (by kind) one representation aspect on an existing entity: its raw source text plus normalized fields (name, type as written, nullable, tags like primary_key/foreign_key, and references for foreign keys). Replace semantics — re-registering a kind overwrites it.",
+	}, h.SetAspect)
 }
