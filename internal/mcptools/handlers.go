@@ -44,4 +44,8 @@ func Register(server *mcp.Server, st *store.Store) {
 		Name:        "diff_entities",
 		Description: "Compare two entities (each identified by project + name). Reports presence-level gaps (which aspect kinds each side has) and field-level differences within each shared kind. Use it across two projects to align the same object between environments.",
 	}, h.DiffEntities)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "export_contract",
+		Description: "Export the authority schema as YAML for one entity (pass entity) or an entire project (omit entity). The contract is the normalized shape (kinds, source_refs, fields), not a copy of raw source files.",
+	}, h.ExportContract)
 }
