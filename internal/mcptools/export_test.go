@@ -25,6 +25,19 @@ func TestExportContractEntity(t *testing.T) {
 	}
 }
 
+func TestExportContractUnknownProjectErrors(t *testing.T) {
+	ctx := context.Background()
+	session, _ := newSession(t)
+
+	res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "export_contract", Arguments: map[string]any{"project": "no-such-project"}})
+	if err != nil {
+		t.Fatalf("call: %v", err)
+	}
+	if !res.IsError {
+		t.Fatalf("want IsError for unknown project, got %+v", res)
+	}
+}
+
 func TestExportContractProject(t *testing.T) {
 	ctx := context.Background()
 	session, _ := newSession(t)

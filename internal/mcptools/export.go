@@ -2,11 +2,13 @@ package mcptools
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/nathanaday/cartographer/internal/contract"
 	"github.com/nathanaday/cartographer/internal/model"
+	"github.com/nathanaday/cartographer/internal/store"
 )
 
 type ExportContractInput struct {
@@ -29,6 +31,9 @@ func (h *Handlers) ExportContract(ctx context.Context, req *mcp.CallToolRequest,
 			return nil, ExportContractOutput{}, err
 		}
 		return nil, ExportContractOutput{YAML: string(data)}, nil
+	}
+	if !h.Store.HasProject(in.Project) {
+		return nil, ExportContractOutput{}, fmt.Errorf("%q: %w", in.Project, store.ErrProjectNotFound)
 	}
 	summaries := h.Store.ListEntities(in.Project, "")
 	ents := make([]model.Entity, 0, len(summaries))

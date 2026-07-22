@@ -71,11 +71,22 @@ func Open(cfg Config) (*Store, error) {
 
 func (s *Store) projectSlug(project string) string { return Slugify(project) }
 
+// HasProject reports whether a project has been registered.
+func (s *Store) HasProject(project string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.projects[s.projectSlug(project)]
+	return ok
+}
+
 // RegisterEntity upserts an entity shell, creating the project on first use.
 // Existing aspects are preserved; only the description is updated.
 func (s *Store) RegisterEntity(project, name, description string) error {
 	if name == "" {
 		return errors.New("entity name must not be empty")
+	}
+	if Slugify(project) == "" {
+		return errors.New("project must not be empty")
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -90,6 +101,12 @@ func (s *Store) RegisterEntity(project, name, description string) error {
 	}
 	ent, ok := s.entities[pslug][name]
 	if !ok {
+		slug := Slugify(name)
+		for existingName := range s.entities[pslug] {
+			if Slugify(existingName) == slug {
+				return fmt.Errorf("entity name %q collides on disk with existing entity %q (both use directory %q)", name, existingName, slug)
+			}
+		}
 		ent = model.Entity{Name: name}
 	}
 	ent.Description = description
@@ -117,6 +134,9 @@ func (s *Store) getEntityLocked(project, name string) (model.Entity, error) {
 	if !ok {
 		return model.Entity{}, fmt.Errorf("%q: %w", name, ErrEntityNotFound)
 	}
+	// Decouple from the map-resident backing array so a caller mutating the
+	// returned slice (or a later in-place store mutation) can't alias state.
+	ent.Aspects = append([]model.Aspect(nil), ent.Aspects...)
 	return ent, nil
 }
 
