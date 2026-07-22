@@ -18,6 +18,7 @@ describe("useMap", () => {
       http.get("/api/map", () =>
         HttpResponse.json({ fingerprint: "v1", projects: [{ slug: "p3-edge", name: "p3-edge" }], entities: [dataObject, geometry] }),
       ),
+      http.get("/api/projects/p3-edge/layout", () => HttpResponse.json({})),
     );
   });
 
