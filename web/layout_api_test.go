@@ -43,3 +43,24 @@ func TestLayoutUnknownProject404(t *testing.T) {
 		t.Fatalf("want 404 for unknown project, got %d", rec.Code)
 	}
 }
+
+func TestLayoutPutUnknownProject404(t *testing.T) {
+	cfg := seedStore(t)
+	srv := newServer(cfg)
+	body, _ := json.Marshal(map[string]map[string]float64{"X": {"x": 1, "y": 2}})
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, httptest.NewRequest(http.MethodPut, "/api/projects/nope/layout", bytes.NewReader(body)))
+	if rec.Code != 404 {
+		t.Fatalf("want 404 for unknown project, got %d", rec.Code)
+	}
+}
+
+func TestLayoutPutBadBody400(t *testing.T) {
+	cfg := seedStore(t)
+	srv := newServer(cfg)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, httptest.NewRequest(http.MethodPut, "/api/projects/p3-edge/layout", bytes.NewReader([]byte("not json"))))
+	if rec.Code != 400 {
+		t.Fatalf("want 400 for bad body, got %d", rec.Code)
+	}
+}
