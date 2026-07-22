@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { VueFlow, useVueFlow, type Node, type Edge } from "@vue-flow/core";
+import { VueFlow, useVueFlow, Panel, type Node, type Edge } from "@vue-flow/core";
 import { Background } from "@vue-flow/background";
 import { Controls } from "@vue-flow/controls";
 import { MiniMap } from "@vue-flow/minimap";
@@ -13,7 +13,21 @@ import "@vue-flow/controls/dist/style.css";
 import "@vue-flow/minimap/dist/style.css";
 
 const map = useMap();
-const { onNodeDragStop, onMove, onNodeDoubleClick, setCenter, viewport } = useVueFlow();
+const { onNodeDragStop, onMove, onNodeDoubleClick, setCenter, viewport, fitView } = useVueFlow();
+
+const resetArmed = ref(false);
+let armTimer: number | null = null;
+function onReset(): void {
+  if (!resetArmed.value) {
+    resetArmed.value = true;
+    if (armTimer !== null) window.clearTimeout(armTimer);
+    armTimer = window.setTimeout(() => (resetArmed.value = false), 3000);
+    return;
+  }
+  resetArmed.value = false;
+  if (armTimer !== null) window.clearTimeout(armTimer);
+  void map.resetLayout().then(() => fitView({ padding: 0.1, duration: 300 }));
+}
 
 // zoom -> level of detail
 const lod = ref<"full" | "headers" | "chip">("chip");
@@ -79,7 +93,10 @@ onMounted(async () => {
   map.startPolling();
   lod.value = lodForZoom(viewport.value.zoom); // after fit-view-on-init
 });
-onUnmounted(() => map.stopPolling());
+onUnmounted(() => {
+  map.stopPolling();
+  if (armTimer !== null) window.clearTimeout(armTimer);
+});
 </script>
 
 <template>
@@ -101,11 +118,40 @@ onUnmounted(() => map.stopPolling());
     </template>
     <Background :gap="16" :size="1" pattern-color="var(--hairline)" />
     <Controls />
-    <MiniMap />
+    <Panel position="top-right" class="canvas-actions">
+      <button @click="fitView({ padding: 0.1, duration: 300 })">fit</button>
+      <button :class="{ armed: resetArmed }" @click="onReset">
+        {{ resetArmed ? "confirm reset" : "reset layout" }}
+      </button>
+    </Panel>
+    <MiniMap v-if="map.entities.value.length > 10" />
   </VueFlow>
 </template>
 
 <style>
+.canvas-actions {
+  display: flex;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.canvas-actions button {
+  border: none;
+  border-right: 1px solid var(--hairline);
+  background: var(--body);
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--steel);
+  padding: calc(var(--unit) * 1) calc(var(--unit) * 2);
+  cursor: pointer;
+}
+.canvas-actions button:last-child {
+  border-right: none;
+}
+.canvas-actions button.armed {
+  background: var(--ink);
+  color: var(--body);
+}
 .chip {
   transform: scale(var(--chip-scale, 1));
   transform-origin: top left;
