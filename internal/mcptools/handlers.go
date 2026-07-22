@@ -28,4 +28,12 @@ func Register(server *mcp.Server, st *store.Store) {
 		Name:        "set_aspect",
 		Description: "Create or replace (by kind) one representation aspect on an existing entity: its raw source text plus normalized fields (name, type as written, nullable, tags like primary_key/foreign_key, and references for foreign keys). Replace semantics — re-registering a kind overwrites it.",
 	}, h.SetAspect)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "remove_aspect",
+		Description: "Remove one representation aspect (and its raw sidecar) from an entity, so a re-scan produces an accurate map.",
+	}, h.RemoveAspect)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "remove_entity",
+		Description: "Remove an entity and all its aspects from a project.",
+	}, h.RemoveEntity)
 }
