@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { autoLayout, estimateCardHeight } from "./autolayout";
+import { autoLayout, estimateCardHeight, CARD_W } from "./autolayout";
 import type { Entity } from "../types/api";
 
 const ent = (project: string, name: string): Entity => ({ project, name, aspects: [] });
+const nodeId = (e: { project: string; name: string }) => `${e.project}/${e.name}`;
 
 describe("autoLayout", () => {
   it("is deterministic and clusters by project", () => {
@@ -47,8 +48,87 @@ describe("height-aware packing", () => {
       entWithFields("p", "C", []),           // shell
     ];
     const out = autoLayout(entities, {});
-    // sorted by name: A, B, C stacked in one column
-    expect(out["p/B"].y).toBeGreaterThanOrEqual(out["p/A"].y + estimateCardHeight(entities[0]));
-    expect(out["p/C"].y).toBeGreaterThanOrEqual(out["p/B"].y + estimateCardHeight(entities[1]));
+    // with 3 entities the cluster may span one or two columns; the only
+    // guaranteed invariant is that cards sharing a column don't overlap.
+    const byCol = new Map<number, { name: string; y: number }[]>();
+    for (const [id, e] of entities.map((e) => [nodeId(e), e] as const)) {
+      const pos = out[id];
+      const list = byCol.get(pos.x) ?? [];
+      list.push({ name: e.name, y: pos.y });
+      byCol.set(pos.x, list);
+    }
+    for (const list of byCol.values()) {
+      list.sort((a, b) => a.y - b.y);
+      for (let i = 0; i + 1 < list.length; i++) {
+        const cur = entities.find((e) => e.name === list[i].name)!;
+        expect(list[i + 1].y).toBeGreaterThanOrEqual(list[i].y + estimateCardHeight(cur));
+      }
+    }
+  });
+});
+
+// genEntities builds `count` entities in `project`, each with a few aspects,
+// named so sort order is stable (A00, A01, ...).
+function genEntities(project: string, count: number): Entity[] {
+  return Array.from({ length: count }, (_, i) =>
+    entWithFields(project, `E${String(i).padStart(3, "0")}`, [3, 4]),
+  );
+}
+
+describe("multi-column masonry", () => {
+  it("wraps a large project into multiple columns", () => {
+    const entities = genEntities("big", 40);
+    const totalH = entities.reduce((sum, e) => sum + estimateCardHeight(e) + 40, 0);
+    const out = autoLayout(entities, {});
+
+    const xs = new Set(entities.map((e) => out[nodeId(e)].x));
+    expect(xs.size).toBeGreaterThan(1);
+
+    const maxColHeight = new Map<number, number>();
+    for (const e of entities) {
+      const pos = out[nodeId(e)];
+      const bottom = pos.y + estimateCardHeight(e);
+      maxColHeight.set(pos.x, Math.max(maxColHeight.get(pos.x) ?? 0, bottom));
+    }
+    const tallestCol = Math.max(...maxColHeight.values());
+    expect(tallestCol).toBeLessThan(totalH / 2);
+  });
+
+  it("never overlaps two cards within the same column", () => {
+    const entities = genEntities("big", 40);
+    const out = autoLayout(entities, {});
+
+    const byCol = new Map<number, { name: string; y: number }[]>();
+    for (const e of entities) {
+      const pos = out[nodeId(e)];
+      const list = byCol.get(pos.x) ?? [];
+      list.push({ name: e.name, y: pos.y });
+      byCol.set(pos.x, list);
+    }
+    for (const list of byCol.values()) {
+      list.sort((a, b) => a.y - b.y);
+      for (let i = 0; i + 1 < list.length; i++) {
+        const cur = entities.find((e) => e.name === list[i].name)!;
+        expect(list[i + 1].y).toBeGreaterThanOrEqual(list[i].y + estimateCardHeight(cur));
+      }
+    }
+  });
+
+  it("is deterministic across repeated calls", () => {
+    const entities = genEntities("big", 40);
+    const a = autoLayout(entities, {});
+    const b = autoLayout(entities, {});
+    expect(a).toEqual(b);
+  });
+
+  it("offsets the next project beyond the first cluster's columns", () => {
+    const entities = [...genEntities("p1-big", 40), ent("p2-small", "Only")];
+    const out = autoLayout(entities, {});
+
+    const p1Xs = genEntities("p1-big", 40).map((e) => out[nodeId(e)].x);
+    const p1MaxX = Math.max(...p1Xs);
+    const p2X = out["p2-small/Only"].x;
+
+    expect(p2X).toBeGreaterThanOrEqual(p1MaxX + CARD_W);
   });
 });

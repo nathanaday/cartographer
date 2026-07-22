@@ -22,11 +22,12 @@ export function estimateCardHeight(e: Entity): number {
   return h;
 }
 
-// autoLayout places cards deterministically: one column cluster per project
-// (projects left-to-right by slug, entities top-to-bottom by name), stacked
-// by accumulated estimated height so tall expanded cards don't overlap. A
-// saved position always wins over the computed one, so user arrangement is
-// preserved.
+// autoLayout places cards deterministically: one masonry cluster per project
+// (projects left-to-right by slug, entities top-to-bottom by name). Each
+// cluster wraps into enough columns to form a roughly square block, with
+// entities greedily placed in the shortest column so tall expanded cards
+// don't overlap. A saved position always wins over the computed one, so
+// user arrangement is preserved.
 export function autoLayout(entities: Entity[], saved: Record<string, XY>): Record<string, XY> {
   const byProject = new Map<string, Entity[]>();
   for (const e of entities) {
@@ -37,16 +38,27 @@ export function autoLayout(entities: Entity[], saved: Record<string, XY>): Recor
   const projects = [...byProject.keys()].sort();
 
   const out: Record<string, XY> = {};
-  let x = 0;
+  let clusterX = 0;
   for (const project of projects) {
     const list = byProject.get(project)!.slice().sort((a, b) => a.name.localeCompare(b.name));
-    let y = 0;
+
+    const totalH = list.reduce((sum, e) => sum + estimateCardHeight(e) + CARD_GAP, 0);
+    const ncols = Math.max(1, Math.ceil(Math.sqrt(totalH / COL_WIDTH)));
+    const colHeights = new Array(ncols).fill(0);
+
     for (const e of list) {
+      let col = 0;
+      for (let i = 1; i < ncols; i++) {
+        if (colHeights[i] < colHeights[col]) col = i;
+      }
       const id = nodeId(e);
+      const x = clusterX + col * COL_WIDTH;
+      const y = colHeights[col];
       out[id] = saved[id] ?? { x, y };
-      y += estimateCardHeight(e) + CARD_GAP;
+      colHeights[col] += estimateCardHeight(e) + CARD_GAP;
     }
-    x += COL_WIDTH + CLUSTER_GAP;
+
+    clusterX += ncols * COL_WIDTH + CLUSTER_GAP;
   }
   return out;
 }
