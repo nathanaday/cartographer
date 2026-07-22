@@ -1,0 +1,50 @@
+/store/
+
+# Windows
+# =======
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.mm
+desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+# =====
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+Trashes/
+ehthumbs.db
+.fseventsd
+
+# Linux
+# =====
+*~
+.fuse_hidden*
+.directory
+.trash/
+.Trash-*
+
+# Go
+# ==
+# Compiled binaries and test/coverage artifacts
+*.exe
+*.exe~
+*.test
+*.out
+coverage.*
+# Built server binary (if produced via `go build -o`)
+/mcp/server
+
+# Agent working docs
+# ==================
+/CLAUDE.md
+/docs/superpowers/
+.superpowers/
+.claude/
+
