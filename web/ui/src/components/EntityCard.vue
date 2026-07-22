@@ -4,7 +4,7 @@ import { sigilFor } from "../lib/sigil";
 import type { Entity } from "../types/api";
 
 const props = defineProps<{
-  data: { entity: Entity; lod: "full" | "headers" | "badges"; kindFilter: string | null };
+  data: { entity: Entity; lod: "full" | "headers" | "chip"; kindFilter: string | null };
 }>();
 
 const entity = computed(() => props.data.entity);
@@ -25,7 +25,14 @@ function dimmed(kind: string): boolean {
 </script>
 
 <template>
-  <div class="card">
+  <div v-if="lod === 'chip'" class="chip" :class="{ hollow: entity.aspects.length === 0 }">
+    <span v-if="entity.aspects.length > 0" class="chip-spine">
+      <span v-for="k in kinds" :key="k" class="spine-seg" :style="{ background: tintVar(k) }" />
+    </span>
+    <span class="chip-name">{{ entity.name }}</span>
+  </div>
+
+  <div v-else class="card">
     <div class="titleblock">
       <div class="row1">
         <span class="name">{{ entity.name }}</span>
@@ -34,26 +41,25 @@ function dimmed(kind: string): boolean {
       <div class="badges">
         <span v-for="k in kinds" :key="k" class="badge" :style="{ background: tintVar(k) }">{{ k }}</span>
       </div>
-      <div v-if="entity.description && lod !== 'badges'" class="desc">{{ entity.description }}</div>
+      <div v-if="entity.description" class="desc" :class="{ full: lod === 'full' }">{{ entity.description }}</div>
     </div>
+    <div v-if="entity.aspects.length === 0" class="empty-state">no representations recorded</div>
 
-    <template v-if="lod !== 'badges'">
-      <div v-for="aspect in entity.aspects" :key="aspect.kind" class="strip" :class="{ dim: dimmed(aspect.kind) }">
-        <button class="strip-head" :style="{ background: tintVar(aspect.kind) }" @click="toggle(aspect.kind)">
-          <span class="kind">{{ aspect.kind }}</span>
-          <span class="count">· {{ aspect.fields.length }}</span>
-          <span class="chevron">{{ collapsed[aspect.kind] ? "▸" : "▾" }}</span>
-        </button>
-        <div v-if="lod === 'full' && !collapsed[aspect.kind]" class="fields">
-          <div v-for="f in aspect.fields" :key="f.name" class="field">
-            <span class="sigil">{{ sigilFor(f.type) }}</span>
-            <span class="fname">{{ f.name }}</span>
-            <span class="ftype">{{ f.type }}</span>
-            <span v-if="f.references" class="port" title="relationship">→</span>
-          </div>
+    <div v-for="aspect in entity.aspects" :key="aspect.kind" class="strip" :class="{ dim: dimmed(aspect.kind) }">
+      <button class="strip-head" :style="{ background: tintVar(aspect.kind) }" @click="toggle(aspect.kind)">
+        <span class="kind">{{ aspect.kind }}</span>
+        <span class="count">· {{ aspect.fields.length }}</span>
+        <span class="chevron">{{ collapsed[aspect.kind] ? "▸" : "▾" }}</span>
+      </button>
+      <div v-if="lod === 'full' && !collapsed[aspect.kind]" class="fields">
+        <div v-for="f in aspect.fields" :key="f.name" class="field">
+          <span class="sigil">{{ sigilFor(f.type) }}</span>
+          <span class="fname">{{ f.name }}</span>
+          <span class="ftype">{{ f.type }}</span>
+          <span v-if="f.references" class="port" title="relationship">→</span>
         </div>
       </div>
-    </template>
+    </div>
   </div>
 </template>
 
@@ -73,6 +79,14 @@ function dimmed(kind: string): boolean {
 .badges { display: flex; gap: var(--unit); margin-top: var(--unit); flex-wrap: wrap; }
 .badge { font-size: 10px; padding: 1px 6px; border-radius: 2px; color: var(--ink); }
 .desc { margin-top: var(--unit); font-size: 11px; color: var(--steel); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.desc.full { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; white-space: normal; }
+.empty-state {
+  padding: calc(var(--unit) * 2);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--steel);
+  background: repeating-linear-gradient(45deg, transparent, transparent 6px, var(--hairline) 6px, var(--hairline) 7px);
+}
 .strip.dim { opacity: 0.35; }
 .strip-head {
   width: 100%; display: flex; align-items: center; gap: var(--unit);
@@ -90,4 +104,25 @@ function dimmed(kind: string): boolean {
 .fname { color: var(--ink); }
 .ftype { color: var(--steel); text-align: right; }
 .port { color: var(--steel); }
+
+.chip {
+  display: flex;
+  align-items: stretch;
+  background: var(--body);
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.chip-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+  padding: calc(var(--unit) * 1.5) calc(var(--unit) * 2);
+  white-space: nowrap;
+}
+.chip.hollow { border-style: dashed; }
+.chip.hollow .chip-name { color: var(--steel); }
+.chip-spine { display: flex; flex-direction: column; width: 3px; }
+.spine-seg { flex: 1; }
 </style>

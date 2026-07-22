@@ -15,11 +15,11 @@ const map = useMap();
 const { onNodeDragStop, onMove, viewport } = useVueFlow();
 
 // zoom -> level of detail
-const lod = ref<"full" | "headers" | "badges">("full");
-function lodForZoom(z: number): "full" | "headers" | "badges" {
+const lod = ref<"full" | "headers" | "chip">("full");
+function lodForZoom(z: number): "full" | "headers" | "chip" {
   if (z >= 0.8) return "full";
   if (z >= 0.4) return "headers";
-  return "badges";
+  return "chip";
 }
 onMove(() => {
   lod.value = lodForZoom(viewport.value.zoom);

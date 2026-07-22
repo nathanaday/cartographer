@@ -30,9 +30,21 @@ describe("EntityCard", () => {
     expect(w.text()).toContain("()"); // Geometry object sigil
   });
 
-  it("at badges LOD shows name and kind badges but not field rows", () => {
-    const w = mount(EntityCard, { props: { data: { entity, lod: "badges", kindFilter: null } } });
+  it("at chip LOD shows the name but not field rows", () => {
+    const w = mount(EntityCard, { props: { data: { entity, lod: "chip", kindFilter: null } } });
     expect(w.text()).toContain("DataObject");
     expect(w.text()).not.toContain("track_id");
+  });
+
+  it("chip is hollow for zero-aspect entities", () => {
+    const empty: Entity = { project: "p", name: "Shell", aspects: [] };
+    const w = mount(EntityCard, { props: { data: { entity: empty, lod: "chip", kindFilter: null } } });
+    expect(w.find(".chip").classes()).toContain("hollow");
+  });
+
+  it("shows the empty state row at full tier for zero-aspect entities", () => {
+    const empty: Entity = { project: "p", name: "Shell", aspects: [] };
+    const w = mount(EntityCard, { props: { data: { entity: empty, lod: "full", kindFilter: null } } });
+    expect(w.text()).toContain("no representations recorded");
   });
 });
