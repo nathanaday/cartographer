@@ -49,7 +49,7 @@ onNodeDoubleClick(({ node }) => {
   if (node.type !== "entity") return;
   const w = node.dimensions?.width ?? 340;
   const h = node.dimensions?.height ?? 100;
-  void setCenter(node.position.x + w / 2, node.position.y + h / 2, { zoom: 1, duration: 400 });
+  void setCenter(node.position.x + w / 2, node.position.y + h / 2, { zoom: 1 });
 });
 
 const entityNodes = computed<Node[]>(() =>
@@ -110,6 +110,7 @@ onUnmounted(() => {
     :edges="edges"
     :min-zoom="0.05"
     :max-zoom="2"
+    :zoom-on-double-click="false"
     fit-view-on-init
     :style="{ '--chip-scale': String(chipScale) }"
   >
