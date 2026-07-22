@@ -40,4 +40,8 @@ func Register(server *mcp.Server, st *store.Store) {
 		Name:        "list_entities",
 		Description: "List entities with their kinds. Optionally filter to one project and/or to entities that have a given aspect kind (e.g. kind=protobuf shows only entities with a protobuf representation).",
 	}, h.ListEntities)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "diff_entities",
+		Description: "Compare two entities (each identified by project + name). Reports presence-level gaps (which aspect kinds each side has) and field-level differences within each shared kind. Use it across two projects to align the same object between environments.",
+	}, h.DiffEntities)
 }
