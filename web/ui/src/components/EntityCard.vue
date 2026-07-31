@@ -11,9 +11,14 @@ const entity = computed(() => props.data.entity);
 const lod = computed(() => props.data.lod);
 const kinds = computed(() => entity.value.aspects.map((a) => a.kind));
 
-const collapsed = ref<Record<string, boolean>>({});
+// A strip is expanded when the user opened it, or — absent a manual toggle —
+// when the kind filter selects it. A manual toggle always wins.
+const userToggled = ref<Record<string, boolean>>({});
+function expanded(kind: string): boolean {
+  return userToggled.value[kind] ?? props.data.kindFilter === kind;
+}
 function toggle(kind: string) {
-  collapsed.value = { ...collapsed.value, [kind]: !collapsed.value[kind] };
+  userToggled.value = { ...userToggled.value, [kind]: !expanded(kind) };
 }
 
 function tintVar(kind: string): string {
@@ -49,9 +54,9 @@ function dimmed(kind: string): boolean {
       <button class="strip-head" :style="{ background: tintVar(aspect.kind) }" @click="toggle(aspect.kind)">
         <span class="kind">{{ aspect.kind }}</span>
         <span class="count">· {{ aspect.fields.length }}</span>
-        <span class="chevron">{{ collapsed[aspect.kind] ? "▸" : "▾" }}</span>
+        <span class="chevron">{{ expanded(aspect.kind) ? "▾" : "▸" }}</span>
       </button>
-      <div v-if="lod === 'full' && !collapsed[aspect.kind]" class="fields">
+      <div v-if="lod === 'full' && expanded(aspect.kind)" class="fields">
         <div v-for="f in aspect.fields" :key="f.name" class="field">
           <span class="sigil">{{ sigilFor(f.type) }}</span>
           <span class="fname">{{ f.name }}</span>

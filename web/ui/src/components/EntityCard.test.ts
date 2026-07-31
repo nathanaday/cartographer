@@ -20,14 +20,48 @@ const entity: Entity = {
 };
 
 describe("EntityCard", () => {
-  it("renders name, aspect strips with counts, and typed fields at full LOD", () => {
+  it("renders name, aspect strips with counts, and typed fields when expanded at full LOD", async () => {
     const w = mount(EntityCard, { props: { data: { entity, lod: "full", kindFilter: null } } });
     expect(w.text()).toContain("DataObject");
     expect(w.text()).toContain("protobuf");
     expect(w.text()).toContain("2"); // protobuf field count
+    await w.findAll(".strip-head")[0].trigger("click");
     expect(w.text()).toContain("track_id");
     expect(w.text()).toContain("Aa"); // string sigil
     expect(w.text()).toContain("()"); // Geometry object sigil
+  });
+
+  it("renders strips collapsed by default at full LOD", () => {
+    const w = mount(EntityCard, { props: { data: { entity, lod: "full", kindFilter: null } } });
+    expect(w.text()).toContain("protobuf");
+    expect(w.text()).toContain("2"); // header count still shows
+    expect(w.find(".fields").exists()).toBe(false);
+    expect(w.text()).not.toContain("track_id");
+  });
+
+  it("expands exactly the strip matching the kind filter", () => {
+    const w = mount(EntityCard, { props: { data: { entity, lod: "full", kindFilter: "protobuf" } } });
+    expect(w.text()).toContain("track_id"); // protobuf expanded
+    expect(w.text()).not.toContain("ts");   // json stays collapsed
+  });
+
+  it("manual toggle opens a strip with no filter active", async () => {
+    const w = mount(EntityCard, { props: { data: { entity, lod: "full", kindFilter: null } } });
+    await w.findAll(".strip-head")[0].trigger("click");
+    expect(w.text()).toContain("track_id");
+  });
+
+  it("manual toggle closes a strip the filter expanded", async () => {
+    const w = mount(EntityCard, { props: { data: { entity, lod: "full", kindFilter: "protobuf" } } });
+    expect(w.text()).toContain("track_id");
+    await w.findAll(".strip-head")[0].trigger("click");
+    expect(w.text()).not.toContain("track_id");
+  });
+
+  it("keeps field rows hidden at headers LOD even when the filter matches", () => {
+    const w = mount(EntityCard, { props: { data: { entity, lod: "headers", kindFilter: "protobuf" } } });
+    expect(w.text()).toContain("protobuf");
+    expect(w.text()).not.toContain("track_id");
   });
 
   it("at chip LOD shows the name but not field rows", () => {
