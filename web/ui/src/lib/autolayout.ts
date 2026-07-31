@@ -5,10 +5,12 @@ const COL_WIDTH = 380;
 const CLUSTER_GAP = 160;
 const CARD_GAP = 40;
 
+// Measured against the rendered card; see EntityCard.vue's styles.
 const TITLE_H = 68; // title block: name + badges + one description line
-const STRIP_HEADER_H = 27; // aspect strip header row
-const FIELD_ROW_H = 22; // one field row at full tier
-const EMPTY_STATE_H = 26; // "no representations recorded" row
+const STRIP_HEADER_H = 29; // aspect strip header row
+const FIELD_ROW_H = 26; // one field row at full tier
+const FIELDS_PAD_H = 8; // padding around an expanded field list
+const EMPTY_STATE_H = 31; // "no representations recorded" row
 const CARD_PAD = 10;
 
 const nodeId = (e: { project: string; name: string }) => `${e.project}/${e.name}`;
@@ -21,7 +23,7 @@ export function estimateCardHeight(e: Entity, kindFilter: string | null = null):
   if (e.aspects.length === 0) return h + EMPTY_STATE_H;
   for (const a of e.aspects) {
     h += STRIP_HEADER_H;
-    if (a.kind === kindFilter) h += a.fields.length * FIELD_ROW_H;
+    if (a.kind === kindFilter) h += a.fields.length * FIELD_ROW_H + FIELDS_PAD_H;
   }
   return h;
 }

@@ -152,7 +152,7 @@ describe("expansion-aware height estimation", () => {
     const e = entWithFields("p", "A", [10, 10]);
     const collapsed = estimateCardHeight(e, null);
     const filtered = estimateCardHeight(e, "k0");
-    expect(filtered).toBe(collapsed + 10 * 22);
+    expect(filtered).toBe(collapsed + 10 * 26 + 8);
   });
 
   it("ignores a filter the entity does not carry", () => {
@@ -199,5 +199,52 @@ describe("expansion-aware height estimation", () => {
     const saved = { [pinnedId]: { x: 999, y: 888 } };
     expect(autoLayout(entities, saved, null)[pinnedId]).toEqual({ x: 999, y: 888 });
     expect(autoLayout(entities, saved, "k0")[pinnedId]).toEqual({ x: 999, y: 888 });
+  });
+});
+
+// The estimate has to match what EntityCard actually draws, or a filtered map
+// packs cards on top of each other. These numbers are measured from the
+// rendered card in a browser and derived from EntityCard.vue's CSS.
+describe("estimate matches rendered card geometry", () => {
+  it("reserves a full rendered row per field, plus the field list's padding", () => {
+    // .field: 22px line-height + 2px padding top and bottom = 26px
+    // .fields: var(--unit) padding top and bottom = 8px
+    const e = entWithFields("p", "A", [7]);
+    expect(estimateCardHeight(e, "k0") - estimateCardHeight(e, null)).toBe(7 * 26 + 8);
+  });
+
+  it("reserves the rendered strip header height per aspect", () => {
+    // .strip-head: 16px line box + 6px padding top and bottom + 1px border = 29px
+    const one = estimateCardHeight(entWithFields("p", "A", [0]));
+    const three = estimateCardHeight(entWithFields("p", "B", [0, 0, 0]));
+    expect(three - one).toBe(2 * 29);
+  });
+
+  it("reserves the rendered empty-state height for a shell entity", () => {
+    // .empty-state: 15px line box + 8px padding top and bottom = 31px
+    const shell = estimateCardHeight(entWithFields("p", "A", []));
+    const oneStrip = estimateCardHeight(entWithFields("p", "B", [0]));
+    expect(shell - oneStrip).toBe(31 - 29);
+  });
+
+  it("leaves a real gap between cards in a filtered column", () => {
+    // rendered height of a card whose k0 strip is expanded, built from the
+    // same measured pieces the estimate uses
+    const rendered = (fieldCounts: number[]) =>
+      74 + 2 + fieldCounts.length * 29 + (fieldCounts[0] ?? 0) * 26 + 8;
+    const entities = genEntities("big", 40);
+    const out = autoLayout(entities, {}, "k0");
+
+    const byCol = new Map<number, number[]>();
+    for (const e of entities) {
+      const pos = out[nodeId(e)];
+      byCol.set(pos.x, [...(byCol.get(pos.x) ?? []), pos.y]);
+    }
+    for (const ys of byCol.values()) {
+      ys.sort((a, b) => a - b);
+      for (let i = 0; i + 1 < ys.length; i++) {
+        expect(ys[i + 1] - ys[i]).toBeGreaterThanOrEqual(rendered([3, 4]));
+      }
+    }
   });
 });
