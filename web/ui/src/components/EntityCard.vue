@@ -74,8 +74,8 @@ const dimHard = computed(() => !matches.value);
       <div v-if="lod === 'full' && expanded(aspect.kind)" class="fields">
         <div v-for="f in aspect.fields" :key="f.name" class="field">
           <span class="sigil">{{ sigilFor(f.type) }}</span>
-          <span class="fname">{{ f.name }}</span>
-          <span class="ftype">{{ f.type }}</span>
+          <span class="fname" :title="f.name">{{ f.name }}</span>
+          <span class="ftype" :title="f.type">{{ f.type }}</span>
           <span v-if="f.references" class="port" title="relationship">→</span>
         </div>
       </div>
@@ -116,13 +116,16 @@ const dimHard = computed(() => !matches.value);
 .strip-head .count { color: var(--steel); font-family: var(--font-mono); }
 .strip-head .chevron { margin-left: auto; color: var(--steel); }
 .fields { padding: var(--unit) 0; }
+/* A field row stays exactly one line tall: the packer estimates card heights
+   from a fixed row height, and a wrapped row would push cards into each other. */
 .field {
-  display: grid; grid-template-columns: 20px 1fr auto 14px; align-items: center; gap: var(--unit);
+  display: grid; grid-template-columns: 20px auto minmax(0, 1fr) 14px;
+  align-items: center; gap: var(--unit); white-space: nowrap;
   padding: 2px calc(var(--unit) * 2); font-family: var(--font-mono); font-size: 12.5px; line-height: 22px;
 }
 .sigil { color: var(--steel); }
-.fname { color: var(--ink); }
-.ftype { color: var(--steel); text-align: right; }
+.fname { color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+.ftype { color: var(--steel); text-align: right; overflow: hidden; text-overflow: ellipsis; }
 .port { color: var(--steel); }
 
 .chip {

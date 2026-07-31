@@ -113,6 +113,20 @@ describe("EntityCard", () => {
     expect(hit.findAll(".seg-match")).toHaveLength(1);
   });
 
+  // A field row has to stay one line tall or the packer's height estimate is
+  // wrong and filtered cards overlap. Long types are clipped, so the full text
+  // has to survive somewhere the reader can reach it.
+  it("keeps the full field type available when the row clips it", () => {
+    const long: Entity = {
+      project: "p",
+      name: "Rule",
+      aspects: [{ kind: "sql", fields: [{ name: "window_seconds", type: "INTEGER NOT NULL DEFAULT 0", nullable: false }] }],
+    };
+    const w = mount(EntityCard, { props: { data: { entity: long, lod: "full", kindFilter: "sql" } } });
+    expect(w.find(".ftype").attributes("title")).toBe("INTEGER NOT NULL DEFAULT 0");
+    expect(w.find(".fname").attributes("title")).toBe("window_seconds");
+  });
+
   it("hard-dims a hollow chip under any filter", () => {
     const empty: Entity = { project: "p", name: "Shell", aspects: [] };
     const w = mount(EntityCard, { props: { data: { entity: empty, lod: "chip", kindFilter: "json" } } });
