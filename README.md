@@ -41,7 +41,8 @@ go build -o mcp/server ./mcp
 ```
 
 Register it with Claude Code (run from the repo root; use an absolute path to the
-binary):
+binary). By default the server is added with **local scope** — available only to
+you, and only in the project you run the command from:
 
 ```
 claude mcp add cartographer \
@@ -49,7 +50,18 @@ claude mcp add cartographer \
   -- "$(pwd)/mcp/server"
 ```
 
-Or add it by hand to your Claude Code MCP config (`.mcp.json`):
+To make it available in **every** project — so you can map any repo you open —
+add it with user scope instead. The only difference is the `-s user` flag:
+
+```
+claude mcp add cartographer -s user \
+  -e CARTOGRAPHER_STORE_DIR=$HOME/.cartographer/store \
+  -- "$(pwd)/mcp/server"
+```
+
+A third scope, `-s project`, checks the config into the repo as a shared
+`.mcp.json` for teammates. That file looks like this, and you can also write it
+by hand:
 
 ```json
 {
