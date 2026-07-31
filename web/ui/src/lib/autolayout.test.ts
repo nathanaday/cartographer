@@ -203,8 +203,12 @@ describe("expansion-aware height estimation", () => {
 });
 
 // The estimate has to match what EntityCard actually draws, or a filtered map
-// packs cards on top of each other. These numbers are measured from the
-// rendered card in a browser and derived from EntityCard.vue's CSS.
+// packs cards on top of each other. These tests pin each constant in
+// estimateCardHeight against a literal derived by hand from EntityCard.vue's
+// CSS (comment on each `it`). jsdom performs no layout, so this only catches
+// a constant drifting from the value below it — it does NOT catch the CSS
+// itself changing underneath an unchanged constant. That would need a real
+// browser (vitest browser mode), which is out of scope here.
 describe("estimate matches rendered card geometry", () => {
   it("reserves a full rendered row per field, plus the field list's padding", () => {
     // .field: 22px line-height + 2px padding top and bottom = 26px
@@ -228,11 +232,29 @@ describe("estimate matches rendered card geometry", () => {
   });
 
   it("leaves a real gap between cards in a filtered column", () => {
-    // rendered height of a card whose k0 strip is expanded, built from the
-    // same measured pieces the estimate uses
-    const rendered = (fieldCounts: number[]) =>
-      74 + 2 + fieldCounts.length * 29 + (fieldCounts[0] ?? 0) * 26 + 8;
-    const entities = genEntities("big", 40);
+    // True rendered height of a card with 3 strips and 13 fields in the
+    // filtered strip, hand-derived from EntityCard.vue's CSS independently
+    // of estimateCardHeight's own constants (so a regression in those
+    // constants moves the packer's spacing without moving this floor).
+    // Title block assumes one description line, matching TITLE_H's model,
+    // which is why the test entities below carry a (short, non-wrapping)
+    // description.
+    const TRUE_TITLEBLOCK_H = 78; // titleblock padding(16) + row1 + badges + one desc line
+    const TRUE_BORDER_H = 2; // 1px card border, top and bottom
+    const TRUE_STRIP_HEADER_H = 29; // 16px line box + 6px padding + 1px border
+    const TRUE_FIELD_ROW_H = 26; // 22px line-height + 2px padding top and bottom
+    const TRUE_FIELDS_PAD_H = 8; // .fields: var(--unit) padding top and bottom
+    const trueHeight = (aspectCount: number, filteredFieldCount: number) =>
+      TRUE_TITLEBLOCK_H +
+      TRUE_BORDER_H +
+      aspectCount * TRUE_STRIP_HEADER_H +
+      filteredFieldCount * TRUE_FIELD_ROW_H +
+      TRUE_FIELDS_PAD_H;
+
+    const entities = Array.from({ length: 40 }, (_, i) => ({
+      ...entWithFields("big", `E${String(i).padStart(3, "0")}`, [13, 4, 4]),
+      description: "one short line, well under the wrap width",
+    }));
     const out = autoLayout(entities, {}, "k0");
 
     const byCol = new Map<number, number[]>();
@@ -243,7 +265,7 @@ describe("estimate matches rendered card geometry", () => {
     for (const ys of byCol.values()) {
       ys.sort((a, b) => a - b);
       for (let i = 0; i + 1 < ys.length; i++) {
-        expect(ys[i + 1] - ys[i]).toBeGreaterThanOrEqual(rendered([3, 4]));
+        expect(ys[i + 1] - ys[i]).toBeGreaterThanOrEqual(trueHeight(3, 13));
       }
     }
   });
