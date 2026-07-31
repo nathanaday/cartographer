@@ -42,7 +42,9 @@ describe("EntityCard", () => {
   it("expands exactly the strip matching the kind filter", () => {
     const w = mount(EntityCard, { props: { data: { entity, lod: "full", kindFilter: "protobuf" } } });
     expect(w.text()).toContain("track_id"); // protobuf expanded
-    expect(w.text()).not.toContain("ts");   // json stays collapsed
+    // only the protobuf strip's 2 fields render; the json strip stays collapsed
+    expect(w.findAll(".field")).toHaveLength(2);
+    expect(w.findAll(".strip")[1].find(".fields").exists()).toBe(false);
   });
 
   it("manual toggle opens a strip with no filter active", async () => {
@@ -56,6 +58,31 @@ describe("EntityCard", () => {
     expect(w.text()).toContain("track_id");
     await w.findAll(".strip-head")[0].trigger("click");
     expect(w.text()).not.toContain("track_id");
+  });
+
+  it("expands a strip when the filter changes on an already-mounted card", async () => {
+    const w = mount(EntityCard, { props: { data: { entity, lod: "full", kindFilter: null } } });
+    expect(w.text()).not.toContain("track_id");
+    await w.setProps({ data: { entity, lod: "full", kindFilter: "protobuf" } });
+    expect(w.text()).toContain("track_id");
+  });
+
+  it("a manual toggle stays sticky when a filter change would otherwise re-collapse it (spec: manual toggle always wins)", async () => {
+    // §1 (manual toggle wins) and §2 (clearing the filter collapses
+    // everything back to default) conflict once a strip has been toggled.
+    // The intended resolution is that userToggled is sticky forever: once a
+    // user acts on a strip, no later filter change moves it again.
+    const w = mount(EntityCard, { props: { data: { entity, lod: "full", kindFilter: "protobuf" } } });
+    expect(w.text()).toContain("track_id"); // opened by the filter
+
+    await w.findAll(".strip-head")[0].trigger("click"); // user closes it
+    expect(w.text()).not.toContain("track_id");
+
+    await w.setProps({ data: { entity, lod: "full", kindFilter: null } }); // filter cleared
+    expect(w.text()).not.toContain("track_id"); // stays closed: the manual toggle is sticky, not the filter
+
+    await w.setProps({ data: { entity, lod: "full", kindFilter: "protobuf" } }); // filter re-applied
+    expect(w.text()).not.toContain("track_id"); // still closed: the toggle outranks the filter every time
   });
 
   it("keeps field rows hidden at headers LOD even when the filter matches", () => {

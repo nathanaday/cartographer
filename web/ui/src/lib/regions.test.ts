@@ -22,19 +22,39 @@ describe("projectRegions", () => {
 });
 
 describe("regions track the packed view", () => {
+  const withFields = (name: string): Entity => ({
+    project: "p",
+    name,
+    aspects: [
+      { kind: "sql", fields: Array.from({ length: 12 }, (_, i) => ({ name: `f${i}`, type: "string", nullable: false })) },
+    ],
+  });
+  const entities = [withFields("A")];
+  const projects = [{ slug: "p", name: "P" }];
+  const positions = { "p/A": { x: 0, y: 0 } };
+
   it("is shorter with collapsed strips than with a filter expanding them", () => {
-    const withFields = (name: string): Entity => ({
-      project: "p",
-      name,
-      aspects: [
-        { kind: "sql", fields: Array.from({ length: 12 }, (_, i) => ({ name: `f${i}`, type: "string", nullable: false })) },
-      ],
-    });
-    const entities = [withFields("A")];
-    const projects = [{ slug: "p", name: "P" }];
-    const positions = { "p/A": { x: 0, y: 0 } };
     const collapsed = projectRegions(entities, positions, projects, null)[0];
     const expanded = projectRegions(entities, positions, projects, "sql")[0];
     expect(collapsed.h).toBeLessThan(expanded.h);
+  });
+
+  it("actually contains the card's estimated bottom edge under each filter", () => {
+    // The trivial "collapsed < expanded" check above doesn't prove the box
+    // fits the card — a region that's merely shorter, but still too short
+    // to reach the card's bottom edge, would also pass it. Check containment
+    // and that the growth matches the field rows the filter reserves.
+    const collapsed = projectRegions(entities, positions, projects, null)[0];
+    const expanded = projectRegions(entities, positions, projects, "sql")[0];
+
+    expect(collapsed.y + collapsed.h).toBeGreaterThanOrEqual(
+      positions["p/A"].y + estimateCardHeight(entities[0], null),
+    );
+    expect(expanded.y + expanded.h).toBeGreaterThanOrEqual(
+      positions["p/A"].y + estimateCardHeight(entities[0], "sql"),
+    );
+    expect(expanded.h - collapsed.h).toBe(
+      estimateCardHeight(entities[0], "sql") - estimateCardHeight(entities[0], null),
+    );
   });
 });

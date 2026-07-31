@@ -47,7 +47,13 @@ describe("height-aware packing", () => {
     expect(big).toBeGreaterThan(small + 200);
   });
 
-  it("stacks without overlap using estimated heights", () => {
+  it("keeps column bookkeeping consistent with the increment formula", () => {
+    // This restates autoLayout's own `estimateCardHeight(...) + CARD_GAP`
+    // increment, so it passes for any value of that estimate, including a
+    // wrong one — it does not prove the reserved space clears the rendered
+    // card. It does catch bookkeeping bugs (wrong column chosen, y not
+    // accumulated correctly). The rendered-geometry invariant is covered
+    // once, by "leaves a real gap between cards in a filtered column" below.
     const entities = [
       entWithFields("p", "A", [13, 13, 12]), // tall
       entWithFields("p", "B", [2]),          // short
@@ -100,7 +106,10 @@ describe("multi-column masonry", () => {
     expect(tallestCol).toBeLessThan(totalH / 2);
   });
 
-  it("never overlaps two cards within the same column", () => {
+  it("keeps column bookkeeping consistent with the increment formula at scale", () => {
+    // Same caveat as the bookkeeping test above: this re-derives the bound
+    // from estimateCardHeight itself, so it cannot catch that estimate being
+    // wrong. It only exercises the bookkeeping across many entities/columns.
     const entities = genEntities("big", 40);
     const out = autoLayout(entities, {});
 
@@ -169,7 +178,11 @@ describe("expansion-aware height estimation", () => {
     );
   });
 
-  it("never overlaps two cards in a column with a filter active", () => {
+  it("keeps column bookkeeping consistent with the increment formula under a filter", () => {
+    // Same caveat: derived from estimateCardHeight, not independent of it.
+    // The independent check is "leaves a real gap between cards in a
+    // filtered column" below, which is the one test in this file that can
+    // actually fail on a wrong constant.
     const entities = genEntities("big", 40);
     const out = autoLayout(entities, {}, "k0");
     const byCol = new Map<number, { name: string; y: number }[]>();
