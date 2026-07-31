@@ -87,4 +87,36 @@ describe("EntityCard", () => {
     const w = mount(EntityCard, { props: { data: { entity: empty, lod: "headers", kindFilter: null } } });
     expect(w.text()).toContain("no representations recorded");
   });
+
+  it("hard-dims a card whose entity lacks the filtered kind", () => {
+    const w = mount(EntityCard, { props: { data: { entity, lod: "full", kindFilter: "sql" } } });
+    expect(w.find(".card").classes()).toContain("dim-hard");
+  });
+
+  it("leaves a matching card undimmed", () => {
+    const w = mount(EntityCard, { props: { data: { entity, lod: "full", kindFilter: "protobuf" } } });
+    expect(w.find(".card").classes()).not.toContain("dim-hard");
+  });
+
+  it("does not dim any card when the filter is cleared", () => {
+    const w = mount(EntityCard, { props: { data: { entity, lod: "full", kindFilter: null } } });
+    expect(w.find(".card").classes()).not.toContain("dim-hard");
+  });
+
+  it("hard-dims a non-matching chip and emphasizes the matching chip's spine", () => {
+    const miss = mount(EntityCard, { props: { data: { entity, lod: "chip", kindFilter: "sql" } } });
+    expect(miss.find(".chip").classes()).toContain("dim-hard");
+
+    const hit = mount(EntityCard, { props: { data: { entity, lod: "chip", kindFilter: "protobuf" } } });
+    expect(hit.find(".chip").classes()).not.toContain("dim-hard");
+    expect(hit.find(".chip").classes()).toContain("matched");
+    expect(hit.findAll(".seg-match")).toHaveLength(1);
+  });
+
+  it("hard-dims a hollow chip under any filter", () => {
+    const empty: Entity = { project: "p", name: "Shell", aspects: [] };
+    const w = mount(EntityCard, { props: { data: { entity: empty, lod: "chip", kindFilter: "json" } } });
+    expect(w.find(".chip").classes()).toContain("hollow");
+    expect(w.find(".chip").classes()).toContain("dim-hard");
+  });
 });

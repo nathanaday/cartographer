@@ -24,20 +24,35 @@ function toggle(kind: string) {
 function tintVar(kind: string): string {
   return `var(--k-${kind}, var(--k-unknown))`;
 }
-function dimmed(kind: string): boolean {
-  return props.data.kindFilter !== null && props.data.kindFilter !== kind;
-}
+
+// An entity matches when no filter is set, or it carries an aspect of the
+// filtered kind. Non-matching entities stay on the map but read as out of view.
+const matches = computed(() => {
+  const f = props.data.kindFilter;
+  return f === null || kinds.value.includes(f);
+});
+const dimHard = computed(() => !matches.value);
 </script>
 
 <template>
-  <div v-if="lod === 'chip'" class="chip" :class="{ hollow: entity.aspects.length === 0 }">
+  <div
+    v-if="lod === 'chip'"
+    class="chip"
+    :class="{ hollow: entity.aspects.length === 0, 'dim-hard': dimHard, matched: matches && data.kindFilter !== null }"
+  >
     <span v-if="entity.aspects.length > 0" class="chip-spine">
-      <span v-for="k in kinds" :key="k" class="spine-seg" :style="{ background: tintVar(k) }" />
+      <span
+        v-for="k in kinds"
+        :key="k"
+        class="spine-seg"
+        :class="{ 'seg-match': k === data.kindFilter }"
+        :style="{ background: tintVar(k) }"
+      />
     </span>
     <span class="chip-name">{{ entity.name }}</span>
   </div>
 
-  <div v-else class="card">
+  <div v-else class="card" :class="{ 'dim-hard': dimHard }">
     <div class="titleblock">
       <div class="row1">
         <span class="name">{{ entity.name }}</span>
@@ -50,7 +65,7 @@ function dimmed(kind: string): boolean {
     </div>
     <div v-if="entity.aspects.length === 0" class="empty-state">no representations recorded</div>
 
-    <div v-for="aspect in entity.aspects" :key="aspect.kind" class="strip" :class="{ dim: dimmed(aspect.kind) }">
+    <div v-for="aspect in entity.aspects" :key="aspect.kind" class="strip">
       <button class="strip-head" :style="{ background: tintVar(aspect.kind) }" @click="toggle(aspect.kind)">
         <span class="kind">{{ aspect.kind }}</span>
         <span class="count">· {{ aspect.fields.length }}</span>
@@ -92,7 +107,7 @@ function dimmed(kind: string): boolean {
   color: var(--steel);
   background: repeating-linear-gradient(45deg, transparent, transparent 6px, var(--hairline) 6px, var(--hairline) 7px);
 }
-.strip.dim { opacity: 0.35; }
+.dim-hard { opacity: 0.25; filter: saturate(0.35); }
 .strip-head {
   width: 100%; display: flex; align-items: center; gap: var(--unit);
   border: none; border-bottom: 1px solid var(--hairline); padding: calc(var(--unit) * 1.5) calc(var(--unit) * 2);
@@ -129,5 +144,7 @@ function dimmed(kind: string): boolean {
 .chip.hollow { border-style: dashed; }
 .chip.hollow .chip-name { color: var(--steel); }
 .chip-spine { display: flex; flex-direction: column; width: 3px; }
+.chip.matched .chip-spine { width: 6px; }
 .spine-seg { flex: 1; }
+.spine-seg.seg-match { flex: 2.4; }
 </style>
