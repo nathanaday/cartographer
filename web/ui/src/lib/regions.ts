@@ -11,6 +11,7 @@ export function projectRegions(
   entities: Entity[],
   positions: Record<string, XY>,
   projects: { slug: string; name: string }[],
+  kindFilter: string | null = null,
 ): Region[] {
   const out: Region[] = [];
   for (const p of projects) {
@@ -22,7 +23,7 @@ export function projectRegions(
       minX = Math.min(minX, pos.x);
       minY = Math.min(minY, pos.y);
       maxX = Math.max(maxX, pos.x + CARD_W);
-      maxY = Math.max(maxY, pos.y + estimateCardHeight(e));
+      maxY = Math.max(maxY, pos.y + estimateCardHeight(e, kindFilter));
     }
     if (minX === Infinity) continue;
     out.push({

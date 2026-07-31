@@ -35,9 +35,15 @@ const entWithFields = (project: string, name: string, fieldCounts: number[]): En
 });
 
 describe("height-aware packing", () => {
-  it("estimates taller cards for more content", () => {
+  it("estimates taller cards for more aspects, even collapsed", () => {
     const small = estimateCardHeight(entWithFields("p", "A", []));
     const big = estimateCardHeight(entWithFields("p", "B", [13, 13, 12]));
+    expect(big).toBeGreaterThan(small);
+  });
+
+  it("estimates taller cards for more content in the filtered aspect", () => {
+    const small = estimateCardHeight(entWithFields("p", "A", [0]), "k0");
+    const big = estimateCardHeight(entWithFields("p", "B", [13]), "k0");
     expect(big).toBeGreaterThan(small + 200);
   });
 
@@ -130,5 +136,68 @@ describe("multi-column masonry", () => {
     const p2X = out["p2-small/Only"].x;
 
     expect(p2X).toBeGreaterThanOrEqual(p1MaxX + CARD_W);
+  });
+});
+
+describe("expansion-aware height estimation", () => {
+  it("excludes field rows with no filter active", () => {
+    // two strips with 10 fields each cost exactly what two empty strips cost:
+    // headers only, no field rows reserved
+    const loaded = estimateCardHeight(entWithFields("p", "A", [10, 10]));
+    const bare = estimateCardHeight(entWithFields("p", "B", [0, 0]));
+    expect(loaded).toBe(bare);
+  });
+
+  it("includes field rows only for the matching aspect", () => {
+    const e = entWithFields("p", "A", [10, 10]);
+    const collapsed = estimateCardHeight(e, null);
+    const filtered = estimateCardHeight(e, "k0");
+    expect(filtered).toBe(collapsed + 10 * 22);
+  });
+
+  it("ignores a filter the entity does not carry", () => {
+    const e = entWithFields("p", "A", [10, 10]);
+    expect(estimateCardHeight(e, "nope")).toBe(estimateCardHeight(e, null));
+  });
+
+  it("packs a tighter map with no filter than with one", () => {
+    const entities = genEntities("big", 40);
+    const bottom = (out: Record<string, { x: number; y: number }>, f: string | null) =>
+      Math.max(...entities.map((e) => out[nodeId(e)].y + estimateCardHeight(e, f)));
+    expect(bottom(autoLayout(entities, {}), null)).toBeLessThan(
+      bottom(autoLayout(entities, {}, "k0"), "k0"),
+    );
+  });
+
+  it("never overlaps two cards in a column with a filter active", () => {
+    const entities = genEntities("big", 40);
+    const out = autoLayout(entities, {}, "k0");
+    const byCol = new Map<number, { name: string; y: number }[]>();
+    for (const e of entities) {
+      const pos = out[nodeId(e)];
+      const list = byCol.get(pos.x) ?? [];
+      list.push({ name: e.name, y: pos.y });
+      byCol.set(pos.x, list);
+    }
+    for (const list of byCol.values()) {
+      list.sort((a, b) => a.y - b.y);
+      for (let i = 0; i + 1 < list.length; i++) {
+        const cur = entities.find((e) => e.name === list[i].name)!;
+        expect(list[i + 1].y).toBeGreaterThanOrEqual(list[i].y + estimateCardHeight(cur, "k0"));
+      }
+    }
+  });
+
+  it("stays deterministic for a given filter", () => {
+    const entities = genEntities("big", 40);
+    expect(autoLayout(entities, {}, "k0")).toEqual(autoLayout(entities, {}, "k0"));
+  });
+
+  it("keeps pinned positions across a filter change", () => {
+    const entities = genEntities("big", 40);
+    const pinnedId = nodeId(entities[3]);
+    const saved = { [pinnedId]: { x: 999, y: 888 } };
+    expect(autoLayout(entities, saved, null)[pinnedId]).toEqual({ x: 999, y: 888 });
+    expect(autoLayout(entities, saved, "k0")[pinnedId]).toEqual({ x: 999, y: 888 });
   });
 });

@@ -7,8 +7,8 @@ import type { Entity, MapResponse, ProjectRef, XY } from "../types/api";
 const entities = ref<Entity[]>([]);
 const projects = ref<ProjectRef[]>([]);
 const pinned = ref<Record<string, XY>>({});
-const positions = computed(() => autoLayout(entities.value, pinned.value));
 const kindFilter = ref<string | null>(null);
+const positions = computed(() => autoLayout(entities.value, pinned.value, kindFilter.value));
 const fingerprint = ref<string>("");
 
 let timer: number | null = null;

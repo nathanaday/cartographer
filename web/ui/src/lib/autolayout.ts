@@ -13,12 +13,16 @@ const CARD_PAD = 10;
 
 const nodeId = (e: { project: string; name: string }) => `${e.project}/${e.name}`;
 
-// estimateCardHeight approximates a card's full-tier height from its content,
-// so packing leaves room even when every strip is expanded.
-export function estimateCardHeight(e: Entity): number {
+// estimateCardHeight approximates a card's rendered height. Strips are
+// collapsed by default, so only the strip the kind filter expands contributes
+// field rows — the packer reserves what the card actually draws.
+export function estimateCardHeight(e: Entity, kindFilter: string | null = null): number {
   let h = TITLE_H + CARD_PAD;
   if (e.aspects.length === 0) return h + EMPTY_STATE_H;
-  for (const a of e.aspects) h += STRIP_HEADER_H + a.fields.length * FIELD_ROW_H;
+  for (const a of e.aspects) {
+    h += STRIP_HEADER_H;
+    if (a.kind === kindFilter) h += a.fields.length * FIELD_ROW_H;
+  }
   return h;
 }
 
@@ -28,7 +32,11 @@ export function estimateCardHeight(e: Entity): number {
 // entities greedily placed in the shortest column so tall expanded cards
 // don't overlap. A saved position always wins over the computed one, so
 // user arrangement is preserved.
-export function autoLayout(entities: Entity[], saved: Record<string, XY>): Record<string, XY> {
+export function autoLayout(
+  entities: Entity[],
+  saved: Record<string, XY>,
+  kindFilter: string | null = null,
+): Record<string, XY> {
   const byProject = new Map<string, Entity[]>();
   for (const e of entities) {
     const list = byProject.get(e.project) ?? [];
@@ -42,7 +50,7 @@ export function autoLayout(entities: Entity[], saved: Record<string, XY>): Recor
   for (const project of projects) {
     const list = byProject.get(project)!.slice().sort((a, b) => a.name.localeCompare(b.name));
 
-    const totalH = list.reduce((sum, e) => sum + estimateCardHeight(e) + CARD_GAP, 0);
+    const totalH = list.reduce((sum, e) => sum + estimateCardHeight(e, kindFilter) + CARD_GAP, 0);
     const ncols = Math.max(1, Math.ceil(Math.sqrt(totalH / COL_WIDTH)));
     const colHeights = new Array(ncols).fill(0);
 
@@ -55,7 +63,7 @@ export function autoLayout(entities: Entity[], saved: Record<string, XY>): Recor
       const x = clusterX + col * COL_WIDTH;
       const y = colHeights[col];
       out[id] = saved[id] ?? { x, y };
-      colHeights[col] += estimateCardHeight(e) + CARD_GAP;
+      colHeights[col] += estimateCardHeight(e, kindFilter) + CARD_GAP;
     }
 
     clusterX += ncols * COL_WIDTH + CLUSTER_GAP;

@@ -66,7 +66,7 @@ const entityNodes = computed<Node[]>(() =>
 );
 
 const regionNodes = computed<Node[]>(() =>
-  projectRegions(map.entities.value, map.positions.value, map.projects.value).map((r) => ({
+  projectRegions(map.entities.value, map.positions.value, map.projects.value, map.kindFilter.value).map((r) => ({
     id: `region:${r.slug}`,
     type: "region",
     zIndex: -1,
