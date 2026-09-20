@@ -1,5 +1,5 @@
 {
-  "schema": "claude-atlas.project.v4",
+  "schema": "atlas-obsidian.project.v4",
   "id": "4f97fbc6-2d6a-49a0-8080-5ad0a7785108",
   "name": "cartographer",
   "mode": "generic",
