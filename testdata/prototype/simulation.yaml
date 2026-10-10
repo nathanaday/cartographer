@@ -1,0 +1,33 @@
+# The example's repositories do not exist. This file stands in for git, the forge, .carto/claims.json, and the clock.
+# The prototype approximates reachability: a commit is on the default branch when it has no ref, or when the Log of its goal
+# says its repository landed.
+now: 2026-10-09T10:45:00
+last_visit: 2026-10-06T18:00:00      # .carto/seen.json: the user's last "Mark seen"
+next_sweep: 2026-10-10T02:00:00
+
+# Commits after the first checks. A commit with no ref is on the default branch.
+commits:
+  myshop-web:
+    - {sha: 3a1b2c3, date: 2026-10-04T12:00:00, paths: [app/products/page.tsx]}
+    - {sha: 4b2c3d4, date: 2026-10-05T09:30:00, paths: [app/cart/page.tsx, lib/api/client.ts]}
+    - {sha: 5c3d4e5, date: 2026-10-07T14:10:00, paths: [lib/api/types.ts]}
+    - {sha: 6d4e5f6, date: 2026-10-08T17:20:00, paths: [app/account/page.tsx]}
+  myshop-api:
+    - {sha: 9f8e7d6, date: 2026-10-07T16:00:00, paths: [server/cmd/reindex/main.go]}
+    - {sha: 5dc85ea, date: 2026-10-08T11:00:00, ref: goal/add-currency, paths: [server/orders/line.go, server/migrations/0031_currency.sql]}
+    - {sha: 08fd415, date: 2026-10-08T15:30:00, ref: goal/add-currency, paths: [server/orders/publish.go, server/orders/decode.go, server/openapi.yaml, server/export/orders_table.sql]}
+  myshop-inventory:
+    - {sha: 3c4d5e6, date: 2026-10-03T09:10:00, ref: upkeep/t2, paths: [inventory/stock/importer.py, inventory/migrations/0014_unit_cost_cents.py]}
+  myshop-schemas:
+    - {sha: e41c0a2, date: 2026-10-07T11:20:00, paths: [a12/order.json]}
+  myshop-infra:
+    - {sha: 7e8f9a0, date: 2026-10-06T10:00:00, paths: [gcs.tf]}
+    - {sha: 8a9b0c1, date: 2026-10-07T16:05:00, paths: [jobs.tf]}
+  myshop-recs:
+    - {sha: 5c6d7e8, date: 2026-10-08T16:00:00, paths: [trainer/data.py]}
+
+# .carto/claims/: claims of agents at work, written by the runner.
+claims:
+  - {goal: Add currency to order lines, task: T4, session: 2026-10-09 1012 c4d5e6, repo: myshop-inventory, log: 2026-10-09 1012 c4d5e6}
+  - {goal: Add currency to order lines, task: T5, session: 2026-10-09 1012 d5e6f7, repo: myshop-web, log: 2026-10-09 1012 d5e6f7}
+  - {goal: Add currency to order lines, task: T7, session: 2026-10-09 1012 e6f7a8, repo: myshop-api, log: 2026-10-09 1012 e6f7a8}

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "carto": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/carto",
+      "args": ["mcp"]
+    }
+  }
+}

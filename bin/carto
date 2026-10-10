@@ -1,0 +1,15 @@
+#!/bin/sh
+# The launcher of the agent plugin. It runs the carto binary: $CARTO_BIN when it is set,
+# else the one `make install` puts in ~/.cartographer/bin, else this checkout's build.
+# A hook must never break the agent's work, so a hook with no binary exits 0 quietly.
+here="$(cd "$(dirname "$0")/.." && pwd)"
+for bin in "$CARTO_BIN" "${CARTO_HOME:-$HOME/.cartographer}/bin/carto" "$here/build/carto"; do
+  if [ -n "$bin" ] && [ -x "$bin" ]; then
+    exec "$bin" "$@"
+  fi
+done
+if [ "$1" = "hook" ]; then
+  exit 0
+fi
+echo "carto: no binary found. Run 'make install' in $here, or set CARTO_BIN." >&2
+exit 1

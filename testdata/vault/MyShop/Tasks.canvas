@@ -1,0 +1,178 @@
+{
+	"nodes": [
+		{
+			"id": "75559b024b40db6b",
+			"type": "group",
+			"label": "Running",
+			"x": 840,
+			"y": 0,
+			"width": 760,
+			"height": 1600
+		},
+		{
+			"id": "d231e4f829c2570c",
+			"type": "group",
+			"label": "Waiting on you",
+			"x": 0,
+			"y": 0,
+			"width": 760,
+			"height": 600
+		},
+		{
+			"id": "ab19a11190311931",
+			"type": "group",
+			"label": "Blocks T6",
+			"x": 20,
+			"y": 80,
+			"width": 720,
+			"height": 460
+		},
+		{
+			"id": "ede5431de7745c95",
+			"type": "group",
+			"label": "T4 \u00b7 myshop-inventory",
+			"x": 860,
+			"y": 80,
+			"width": 720,
+			"height": 460
+		},
+		{
+			"id": "d86689174db070e1",
+			"type": "group",
+			"label": "T5 \u00b7 myshop-web",
+			"x": 860,
+			"y": 580,
+			"width": 720,
+			"height": 460
+		},
+		{
+			"id": "1a17967ca2001fbf",
+			"type": "group",
+			"label": "T7 \u00b7 myshop-api",
+			"x": 860,
+			"y": 1080,
+			"width": 720,
+			"height": 460
+		},
+		{
+			"id": "7b24c9605cdb7db0",
+			"type": "group",
+			"label": "Ready",
+			"x": 1680,
+			"y": 0,
+			"width": 760,
+			"height": 280
+		},
+		{
+			"id": "ab7672141dab7bf7",
+			"type": "group",
+			"label": "Landing",
+			"x": 2520,
+			"y": 0,
+			"width": 760,
+			"height": 280
+		},
+		{
+			"id": "19a48ac4b8f9040b",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Questions/Should invoice-worker adopt the Shop Data Schema.md",
+			"x": 40,
+			"y": 120,
+			"width": 680,
+			"height": 200,
+			"color": "2"
+		},
+		{
+			"id": "342765be10a65992",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Goals/Add currency to order lines.md",
+			"x": 40,
+			"y": 340,
+			"width": 680,
+			"height": 140,
+			"subpath": "#^t6"
+		},
+		{
+			"id": "75e1debde3282fc2",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Goals/Add currency to order lines.md",
+			"x": 880,
+			"y": 120,
+			"width": 680,
+			"height": 140,
+			"subpath": "#^t4",
+			"color": "6"
+		},
+		{
+			"id": "25ac0c7cd1f196f3",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Sessions/2026-10/2026-10-09 1012 c4d5e6.md",
+			"x": 880,
+			"y": 280,
+			"width": 680,
+			"height": 200
+		},
+		{
+			"id": "a330dc125e8d72a7",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Goals/Add currency to order lines.md",
+			"x": 880,
+			"y": 620,
+			"width": 680,
+			"height": 140,
+			"subpath": "#^t5",
+			"color": "6"
+		},
+		{
+			"id": "15db7ea57e7b57aa",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Sessions/2026-10/2026-10-09 1012 d5e6f7.md",
+			"x": 880,
+			"y": 780,
+			"width": 680,
+			"height": 200
+		},
+		{
+			"id": "89253e60dd72b456",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Goals/Add currency to order lines.md",
+			"x": 880,
+			"y": 1120,
+			"width": 680,
+			"height": 140,
+			"subpath": "#^t7",
+			"color": "6"
+		},
+		{
+			"id": "1b288f3505f4e1ac",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Sessions/2026-10/2026-10-09 1012 e6f7a8.md",
+			"x": 880,
+			"y": 1280,
+			"width": 680,
+			"height": 200
+		},
+		{
+			"id": "6ee0b04ff13696cb",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Goals/Upkeep.md",
+			"x": 1700,
+			"y": 80,
+			"width": 720,
+			"height": 140,
+			"subpath": "#^t3"
+		},
+		{
+			"id": "c8ffeba9084ff0cb",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Goals/Upkeep.md",
+			"x": 2540,
+			"y": 80,
+			"width": 720,
+			"height": 140,
+			"subpath": "#^t2",
+			"color": "4"
+		}
+	],
+	"edges": []
+}

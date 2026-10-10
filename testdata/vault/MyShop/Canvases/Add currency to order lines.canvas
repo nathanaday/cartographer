@@ -1,0 +1,120 @@
+{
+	"nodes": [
+		{
+			"id": "8f65e168ce4518bc",
+			"type": "group",
+			"label": "Add currency to order lines",
+			"x": 0,
+			"y": 0,
+			"width": 3140,
+			"height": 1460
+		},
+		{
+			"id": "45cb050891490110",
+			"type": "group",
+			"label": "Footprint",
+			"x": 40,
+			"y": 680,
+			"width": 3060,
+			"height": 720
+		},
+		{
+			"id": "143f4827e2703a0e",
+			"type": "group",
+			"label": "Clauses",
+			"x": 820,
+			"y": 60,
+			"width": 697,
+			"height": 520
+		},
+		{
+			"id": "56085d9005712836",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Goals/Add currency to order lines.md",
+			"x": 40,
+			"y": 50,
+			"width": 700,
+			"height": 260,
+			"color": "6"
+		},
+		{
+			"id": "cd3a90db774661f6",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Goals/Add currency to order lines.md",
+			"x": 840,
+			"y": 140,
+			"width": 637,
+			"height": 160,
+			"subpath": "#G-1"
+		},
+		{
+			"id": "5f53fbceabccca14",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Contracts/Shop Data Schema.md",
+			"x": 840,
+			"y": 360,
+			"width": 637,
+			"height": 160,
+			"subpath": "#DS-4"
+		},
+		{
+			"id": "36a3b2ee49dc7695",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Services/shop-api.md",
+			"x": 60,
+			"y": 760,
+			"width": 700,
+			"height": 260,
+			"color": "3"
+		},
+		{
+			"id": "8318880a6b6de347",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Services/inventory-service.md",
+			"x": 820,
+			"y": 760,
+			"width": 700,
+			"height": 260,
+			"color": "3"
+		},
+		{
+			"id": "7d457d657ca57dfd",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Services/recs-trainer.md",
+			"x": 1580,
+			"y": 760,
+			"width": 700,
+			"height": 260,
+			"color": "4"
+		},
+		{
+			"id": "5667bcd98efcddbe",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Services/shop-web.md",
+			"x": 2340,
+			"y": 760,
+			"width": 700,
+			"height": 260,
+			"color": "3"
+		},
+		{
+			"id": "d8b9dcaa17b27e70",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Contracts/Shop Data Schema.md",
+			"x": 60,
+			"y": 1080,
+			"width": 700,
+			"height": 260
+		},
+		{
+			"id": "14706d8f9cb6bef9",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Services/invoice-worker.md",
+			"x": 820,
+			"y": 1080,
+			"width": 700,
+			"height": 260
+		}
+	],
+	"edges": []
+}

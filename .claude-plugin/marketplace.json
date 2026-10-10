@@ -1,0 +1,8 @@
+{
+  "name": "cartographer",
+  "description": "Cartographer: a map of a software ecosystem in an Obsidian vault, for building with coding agents without breaking formal requirements.",
+  "owner": { "name": "nathanaday" },
+  "plugins": [
+    { "name": "cartographer", "source": "./", "description": "A map of a software ecosystem, with contracts, checks, findings, and goals." }
+  ]
+}

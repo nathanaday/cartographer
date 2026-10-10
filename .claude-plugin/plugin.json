@@ -1,0 +1,18 @@
+{
+  "name": "cartographer",
+  "version": "0.1.0",
+  "description": "A map of a software ecosystem in an Obsidian vault: systems, services, interfaces, and contracts with numbered clauses; checks with evidence; findings; and goals that change the map. Agents receive a service's rules before they edit it, check what they changed, and change declared state only through proposals the user approves.",
+  "author": {
+    "name": "nathanaday",
+    "url": "https://github.com/nathanaday"
+  },
+  "homepage": "https://github.com/nathanaday/cartographer",
+  "repository": "https://github.com/nathanaday/cartographer",
+  "keywords": [
+    "obsidian",
+    "architecture",
+    "requirements",
+    "contracts",
+    "agents"
+  ]
+}

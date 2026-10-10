@@ -1,0 +1,9 @@
+{
+  "id": "cartographer",
+  "name": "Cartographer",
+  "version": "0.1.0",
+  "minAppVersion": "1.13.0",
+  "description": "A map of your software ecosystem: systems, services, interfaces, and contracts, with checks and goals that your coding agents keep true. Decide in place, and change the map by moving cards on its canvas. Needs the Cartographer agent plugin.",
+  "author": "nathanaday",
+  "isDesktopOnly": true
+}

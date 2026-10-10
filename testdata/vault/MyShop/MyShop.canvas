@@ -1,0 +1,755 @@
+{
+	"nodes": [
+		{
+			"id": "f3133935bda81cca",
+			"type": "group",
+			"label": "MyShop",
+			"x": 0,
+			"y": 0,
+			"width": 6620,
+			"height": 4830
+		},
+		{
+			"id": "4bc3a5713e7fd4cd",
+			"type": "group",
+			"label": "Storefront",
+			"x": 3880,
+			"y": 780,
+			"width": 2700,
+			"height": 3390
+		},
+		{
+			"id": "3095963b3938d3c8",
+			"type": "group",
+			"label": "Recommendations",
+			"x": 1960,
+			"y": 780,
+			"width": 1800,
+			"height": 2340
+		},
+		{
+			"id": "8c4de909dd82c48a",
+			"type": "group",
+			"label": "Back Office",
+			"x": 40,
+			"y": 780,
+			"width": 1800,
+			"height": 2250
+		},
+		{
+			"id": "2a78f4f1f6361db9",
+			"type": "group",
+			"label": "shop-api",
+			"x": 4820,
+			"y": 1190,
+			"width": 820,
+			"height": 2920
+		},
+		{
+			"id": "b0ec0c5263ec3de1",
+			"type": "group",
+			"label": "inventory-service",
+			"x": 80,
+			"y": 1190,
+			"width": 820,
+			"height": 1780
+		},
+		{
+			"id": "7d081be17c73ce7c",
+			"type": "group",
+			"label": "recs-server",
+			"x": 2000,
+			"y": 1280,
+			"width": 820,
+			"height": 1780
+		},
+		{
+			"id": "1874c51c36c49784",
+			"type": "group",
+			"label": "recs-trainer",
+			"x": 2900,
+			"y": 1280,
+			"width": 820,
+			"height": 1780
+		},
+		{
+			"id": "3a10aba79425ee63",
+			"type": "group",
+			"label": "recs-server",
+			"x": 3920,
+			"y": 1190,
+			"width": 820,
+			"height": 1780
+		},
+		{
+			"id": "30ddfbe28e4bc2af",
+			"type": "group",
+			"label": "shop-web",
+			"x": 5720,
+			"y": 1190,
+			"width": 820,
+			"height": 1400
+		},
+		{
+			"id": "5f2e395bec2dc11a",
+			"type": "group",
+			"label": "invoice-worker",
+			"x": 980,
+			"y": 1190,
+			"width": 820,
+			"height": 1360
+		},
+		{
+			"id": "a3f1f277f7806c76",
+			"type": "group",
+			"label": "Interfaces",
+			"x": 4863,
+			"y": 2270,
+			"width": 697,
+			"height": 1400
+		},
+		{
+			"id": "a53d7c03b33a6d43",
+			"type": "group",
+			"label": "Modules",
+			"x": 40,
+			"y": 4310,
+			"width": 1800,
+			"height": 460
+		},
+		{
+			"id": "fef4673cd2d91e6a",
+			"type": "group",
+			"label": "Contracts",
+			"x": 4863,
+			"y": 1590,
+			"width": 697,
+			"height": 600
+		},
+		{
+			"id": "4c3b1dc67a9a0ac9",
+			"type": "group",
+			"label": "Contracts",
+			"x": 820,
+			"y": 60,
+			"width": 697,
+			"height": 600
+		},
+		{
+			"id": "95dd1df8f4de2d37",
+			"type": "group",
+			"label": "Interfaces",
+			"x": 123,
+			"y": 2010,
+			"width": 697,
+			"height": 520
+		},
+		{
+			"id": "ac9a640d6a4c69d7",
+			"type": "group",
+			"label": "Interfaces",
+			"x": 1023,
+			"y": 1590,
+			"width": 697,
+			"height": 520
+		},
+		{
+			"id": "a27d73d2618ae0df",
+			"type": "group",
+			"label": "Interfaces",
+			"x": 2043,
+			"y": 2100,
+			"width": 697,
+			"height": 520
+		},
+		{
+			"id": "87824bb3990e745f",
+			"type": "group",
+			"label": "Interfaces",
+			"x": 2943,
+			"y": 2100,
+			"width": 697,
+			"height": 520
+		},
+		{
+			"id": "f72bc3a66f27d6c0",
+			"type": "group",
+			"label": "Interfaces",
+			"x": 3963,
+			"y": 2010,
+			"width": 697,
+			"height": 520
+		},
+		{
+			"id": "7693b403ef1ecb45",
+			"type": "group",
+			"label": "Interfaces",
+			"x": 5763,
+			"y": 2010,
+			"width": 697,
+			"height": 520
+		},
+		{
+			"id": "03936e8f4d4d634b",
+			"type": "group",
+			"label": "myshop-common",
+			"x": 80,
+			"y": 4370,
+			"width": 820,
+			"height": 360
+		},
+		{
+			"id": "5dfe329317c0600c",
+			"type": "group",
+			"label": "shop-auth",
+			"x": 980,
+			"y": 4370,
+			"width": 820,
+			"height": 360
+		},
+		{
+			"id": "89196ef4b1bfd46e",
+			"type": "group",
+			"label": "Contracts",
+			"x": 123,
+			"y": 1590,
+			"width": 697,
+			"height": 340
+		},
+		{
+			"id": "5748c352d5eacf41",
+			"type": "group",
+			"label": "Contracts",
+			"x": 2780,
+			"y": 840,
+			"width": 697,
+			"height": 340
+		},
+		{
+			"id": "4e1ebbead7a5ed08",
+			"type": "group",
+			"label": "Contracts",
+			"x": 2043,
+			"y": 1680,
+			"width": 697,
+			"height": 340
+		},
+		{
+			"id": "b1b0a6091852c511",
+			"type": "group",
+			"label": "Contracts",
+			"x": 2943,
+			"y": 1680,
+			"width": 697,
+			"height": 340
+		},
+		{
+			"id": "4f7d4a9171e55c26",
+			"type": "group",
+			"label": "Contracts",
+			"x": 3963,
+			"y": 1590,
+			"width": 697,
+			"height": 340
+		},
+		{
+			"id": "03ffa765c0565d46",
+			"type": "group",
+			"label": "Contracts",
+			"x": 5763,
+			"y": 1590,
+			"width": 697,
+			"height": 340
+		},
+		{
+			"id": "d0ab9bbc5b2ef71a",
+			"type": "group",
+			"label": "Modules",
+			"x": 123,
+			"y": 2610,
+			"width": 697,
+			"height": 300
+		},
+		{
+			"id": "bef87ce26297270d",
+			"type": "group",
+			"label": "Modules",
+			"x": 1023,
+			"y": 2190,
+			"width": 697,
+			"height": 300
+		},
+		{
+			"id": "021bcd6d4188b60a",
+			"type": "group",
+			"label": "Modules",
+			"x": 2043,
+			"y": 2700,
+			"width": 697,
+			"height": 300
+		},
+		{
+			"id": "c60e20b337e0ed75",
+			"type": "group",
+			"label": "Modules",
+			"x": 2943,
+			"y": 2700,
+			"width": 697,
+			"height": 300
+		},
+		{
+			"id": "a7886316967c2694",
+			"type": "group",
+			"label": "Modules",
+			"x": 3963,
+			"y": 2610,
+			"width": 697,
+			"height": 300
+		},
+		{
+			"id": "002e00f9b84143ee",
+			"type": "group",
+			"label": "Modules",
+			"x": 4863,
+			"y": 3750,
+			"width": 697,
+			"height": 300
+		},
+		{
+			"id": "d3d1fc41c69824b5",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Systems/Back Office.md",
+			"x": 80,
+			"y": 830,
+			"width": 700,
+			"height": 260,
+			"color": "1"
+		},
+		{
+			"id": "15d9e958add78480",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Services/inventory-service.md",
+			"x": 120,
+			"y": 1240,
+			"width": 700,
+			"height": 260,
+			"color": "1"
+		},
+		{
+			"id": "e03c2365d69fd291",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Contracts/Shop Data Schema.md",
+			"x": 143,
+			"y": 1670,
+			"width": 637,
+			"height": 200,
+			"color": "1"
+		},
+		{
+			"id": "e6423be484533761",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Interfaces/Stock Levels.md",
+			"x": 143,
+			"y": 2090,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "8033abb7b949aad2",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Interfaces/Order Events.md",
+			"x": 143,
+			"y": 2310,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "80200cc125be8915",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Modules/myshop-common.md",
+			"x": 143,
+			"y": 2690,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "f55365418c17e144",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Services/invoice-worker.md",
+			"x": 1020,
+			"y": 1240,
+			"width": 700,
+			"height": 260
+		},
+		{
+			"id": "54e5ac10e4989e2b",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Interfaces/Invoice PDFs.md",
+			"x": 1043,
+			"y": 1670,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "d7ecba53c29228b4",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Interfaces/Order Events.md",
+			"x": 1043,
+			"y": 1890,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "4bef0882c8ebc9cd",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Modules/myshop-common.md",
+			"x": 1043,
+			"y": 2270,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "856e48a1dace4872",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Systems/Recommendations.md",
+			"x": 2000,
+			"y": 830,
+			"width": 700,
+			"height": 260
+		},
+		{
+			"id": "05afee9125bf3645",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Contracts/Model Release Policy.md",
+			"x": 2800,
+			"y": 920,
+			"width": 637,
+			"height": 200
+		},
+		{
+			"id": "7e03f7a921f070d4",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Services/recs-server.md",
+			"x": 2040,
+			"y": 1330,
+			"width": 700,
+			"height": 260,
+			"color": "4"
+		},
+		{
+			"id": "aa8a7c763e58292f",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Contracts/API Standards.md",
+			"x": 2063,
+			"y": 1760,
+			"width": 637,
+			"height": 200
+		},
+		{
+			"id": "0dcd6b81d83c2771",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Interfaces/Recs API.md",
+			"x": 2063,
+			"y": 2180,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "a9d706d42d029a8b",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Interfaces/Recs Model.md",
+			"x": 2063,
+			"y": 2400,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "43bf0da58561a03d",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Modules/myshop-common.md",
+			"x": 2063,
+			"y": 2780,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "4d3c59256404240d",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Services/recs-trainer.md",
+			"x": 2940,
+			"y": 1330,
+			"width": 700,
+			"height": 260,
+			"color": "4"
+		},
+		{
+			"id": "9f2ca34192df96a8",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Contracts/Shop Data Schema.md",
+			"x": 2963,
+			"y": 1760,
+			"width": 637,
+			"height": 200
+		},
+		{
+			"id": "6f55d0092ebb2242",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Interfaces/Recs Model.md",
+			"x": 2963,
+			"y": 2180,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "ea08befa9fe58a60",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Interfaces/Order History.md",
+			"x": 2963,
+			"y": 2400,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "d3bf72d84fd1ff1d",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Modules/myshop-common.md",
+			"x": 2963,
+			"y": 2780,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "b28d8d8fb29bc5c0",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Systems/Storefront.md",
+			"x": 3920,
+			"y": 830,
+			"width": 700,
+			"height": 260,
+			"color": "3"
+		},
+		{
+			"id": "29b7af655ca985ad",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Services/recs-server.md",
+			"x": 3960,
+			"y": 1240,
+			"width": 700,
+			"height": 260,
+			"color": "4"
+		},
+		{
+			"id": "ab4c921d8d84ae7e",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Contracts/API Standards.md",
+			"x": 3983,
+			"y": 1670,
+			"width": 637,
+			"height": 200
+		},
+		{
+			"id": "45205a18ba7357ea",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Interfaces/Recs API.md",
+			"x": 3983,
+			"y": 2090,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "6b84ff8ae41d1c94",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Interfaces/Recs Model.md",
+			"x": 3983,
+			"y": 2310,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "55a268799ed5a1e4",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Modules/myshop-common.md",
+			"x": 3983,
+			"y": 2690,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "cbdf6f3ffe7dc33c",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Services/shop-api.md",
+			"x": 4860,
+			"y": 1240,
+			"width": 700,
+			"height": 260,
+			"color": "3"
+		},
+		{
+			"id": "b48847263b8cee24",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Contracts/Shop Data Schema.md",
+			"x": 4883,
+			"y": 1670,
+			"width": 637,
+			"height": 200
+		},
+		{
+			"id": "9dd5f5b7235076c9",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Contracts/API Standards.md",
+			"x": 4883,
+			"y": 1930,
+			"width": 637,
+			"height": 200
+		},
+		{
+			"id": "d07dfefeeba90341",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Interfaces/Shop REST API.md",
+			"x": 4883,
+			"y": 2350,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "f2bcf1b803f4dd79",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Interfaces/Order Events.md",
+			"x": 4883,
+			"y": 2570,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "a9ba21f5c08cae7b",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Interfaces/Order History.md",
+			"x": 4883,
+			"y": 2790,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "b1efe9a4c28c78e6",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Interfaces/Stock Levels.md",
+			"x": 4883,
+			"y": 3010,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "0f0b56d89dbe4975",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Interfaces/Stripe Payments.md",
+			"x": 4883,
+			"y": 3230,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "1d6e1dabf543f04c",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Interfaces/Recs API.md",
+			"x": 4883,
+			"y": 3450,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "cf6498ef311facd5",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Modules/shop-auth.md",
+			"x": 4883,
+			"y": 3830,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "be70490166554003",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Services/shop-web.md",
+			"x": 5760,
+			"y": 1240,
+			"width": 700,
+			"height": 260,
+			"color": "4"
+		},
+		{
+			"id": "035b3acdbb9150ea",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Contracts/Shop Data Schema.md",
+			"x": 5783,
+			"y": 1670,
+			"width": 637,
+			"height": 200
+		},
+		{
+			"id": "f82c9172424de014",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Interfaces/Shop REST API.md",
+			"x": 5783,
+			"y": 2090,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "eb439cd7306f9f50",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Interfaces/Recs API.md",
+			"x": 5783,
+			"y": 2310,
+			"width": 637,
+			"height": 160
+		},
+		{
+			"id": "86725cd1ef53d07f",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Modules/myshop-common.md",
+			"x": 120,
+			"y": 4420,
+			"width": 700,
+			"height": 260,
+			"color": "4"
+		},
+		{
+			"id": "94c2a89a2cfb63c2",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Modules/shop-auth.md",
+			"x": 1020,
+			"y": 4420,
+			"width": 700,
+			"height": 260,
+			"color": "4"
+		},
+		{
+			"id": "2381582c4744dc65",
+			"type": "file",
+			"file": "cartographer-design/MyShop/MyShop.md",
+			"x": 40,
+			"y": 50,
+			"width": 700,
+			"height": 260,
+			"color": "1"
+		},
+		{
+			"id": "f4c424a37424e44b",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Contracts/Security Policy.md",
+			"x": 840,
+			"y": 140,
+			"width": 637,
+			"height": 200
+		},
+		{
+			"id": "2ca24971ccb30bc3",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Contracts/Branch and CI Rules.md",
+			"x": 840,
+			"y": 400,
+			"width": 637,
+			"height": 200
+		}
+	],
+	"edges": []
+}

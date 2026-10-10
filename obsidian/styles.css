@@ -1,0 +1,35 @@
+.carto-block .carto-item {
+	margin: 0 0 0.9em;
+}
+.carto-block .carto-item-text p {
+	margin: 0 0 0.3em;
+}
+.carto-block .carto-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4em;
+}
+.carto-block button {
+	font-size: var(--font-ui-small);
+}
+.carto-block > button {
+	margin-top: 0.4em;
+}
+.carto-hint {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+.carto-error {
+	color: var(--text-error);
+}
+.carto-wide {
+	width: 100%;
+}
+.canvas-node.carto-same .canvas-node-container {
+	outline: 3px solid var(--interactive-accent);
+	outline-offset: 2px;
+}
+.carto-panel .setting-item-control {
+	flex-wrap: wrap;
+	gap: 0.3em;
+}

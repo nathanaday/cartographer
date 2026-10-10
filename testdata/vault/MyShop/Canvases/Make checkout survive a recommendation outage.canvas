@@ -1,0 +1,91 @@
+{
+	"nodes": [
+		{
+			"id": "016eda96ddc4800a",
+			"type": "group",
+			"label": "Make checkout survive a recommendation outage",
+			"x": 0,
+			"y": 0,
+			"width": 3140,
+			"height": 1140
+		},
+		{
+			"id": "45cb050891490110",
+			"type": "group",
+			"label": "Footprint",
+			"x": 40,
+			"y": 680,
+			"width": 3060,
+			"height": 400
+		},
+		{
+			"id": "143f4827e2703a0e",
+			"type": "group",
+			"label": "Clauses",
+			"x": 820,
+			"y": 60,
+			"width": 697,
+			"height": 520
+		},
+		{
+			"id": "03b4de50e1baa78e",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Goals/Make checkout survive a recommendation outage.md",
+			"x": 40,
+			"y": 50,
+			"width": 700,
+			"height": 260,
+			"color": "6"
+		},
+		{
+			"id": "9843caa2a361bdd3",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Goals/Make checkout survive a recommendation outage.md",
+			"x": 840,
+			"y": 140,
+			"width": 637,
+			"height": 160,
+			"subpath": "#G-1"
+		},
+		{
+			"id": "90d8a9440d9fe51d",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Systems/Storefront.md",
+			"x": 840,
+			"y": 360,
+			"width": 637,
+			"height": 160,
+			"subpath": "#SHOP-2"
+		},
+		{
+			"id": "36a3b2ee49dc7695",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Services/shop-api.md",
+			"x": 60,
+			"y": 760,
+			"width": 700,
+			"height": 260,
+			"color": "3"
+		},
+		{
+			"id": "0d9df5dd183367e1",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Systems/Storefront.md",
+			"x": 820,
+			"y": 760,
+			"width": 700,
+			"height": 260,
+			"color": "3"
+		},
+		{
+			"id": "5667bcd98efcddbe",
+			"type": "file",
+			"file": "cartographer-design/MyShop/Services/shop-web.md",
+			"x": 1580,
+			"y": 760,
+			"width": 700,
+			"height": 260
+		}
+	],
+	"edges": []
+}

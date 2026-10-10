@@ -1,0 +1,20 @@
+{
+  "name": "obsidian-cartographer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Obsidian plugin of Cartographer.",
+  "scripts": {
+    "build": "tsc --noEmit && node esbuild.config.mjs production",
+    "dev": "node esbuild.config.mjs",
+    "test": "node esbuild.config.mjs test && node --test build-test/*.test.cjs",
+    "test:obsidian": "npm run build && vitest run test/obsidian"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.3",
+    "esbuild": "0.28.2",
+    "obsidian": "1.13.1",
+    "playwright-core": "1.63.0",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}
