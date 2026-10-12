@@ -65,6 +65,14 @@ change document, and the refresh.
 The vault's git can be busy with another program (an editor, a sync plugin). Each git call
 waits up to five seconds for `index.lock` to go.
 
+Edits outside an act (the user's in Obsidian, an agent's of prose) are committed by
+`carto snapshot`: the plugin runs it 20 seconds after the last edit, and the Stop hook after
+each agent turn in the vault. It commits only the project's Markdown files, under the lock.
+
+A new project starts with a proposal that creates its document; `propose` and its approval
+work in a folder that holds no project yet. The tool stamps `created` and `updated` on each
+document it creates.
+
 ## Undo
 
 An act stores its **base** (the vault's commit before it) and, for each file its operations
@@ -82,6 +90,7 @@ restores the hand edits too, and does not lose them.
 |---|---|---|
 | The user, in Obsidian or the CLI | canvas gestures, New, answers, choices, Approve | at once, as one act in the hour's "Your edits" document |
 | An agent | `propose` | a proposed change, applied when the user approves |
+| An agent, for a draft goal | `propose` with only draft goals | at once: the draft is the proposal, and the agent edits it while it stays a draft |
 | An agent, for a user's choice | `propose` with `because` | at once, as the user's act, once |
 
 A choice whose option carries a `Change:` gets `[apply:: pending]` on its choice line. The
@@ -91,6 +100,22 @@ Obsidian is carried out without the user opening a session. What carries it out 
 
 A decision on a lint result becomes an answered question that `holds` the lint, so it follows
 the same path.
+
+## Attention at scale
+
+A first sweep of a real project opens tens of findings. Findings that wait for a decision
+and have the same option titles share one line when they share a clause (violations), an
+entity (divergences, absences), or a repository (unmapped); lone violations of one contract
+on one entity share a line too. An option applies to each, as one act (`carto choose F1 F2 N`).
+A proposed change that edits the documents a lint result names holds that result, as a
+question does. The plugin shows the first ten lines and the rest on request.
+
+## Git at scale
+
+`live.Env` answers for one moment: it keeps each answer of git, and reads the files each
+commit changed with one `git log --name-only` for each span, then matches paths in Go as
+git reads a pathspec. A load of a project with 400 results went from about a minute to under
+a second. Each load makes a new `Env`.
 
 ## The canvas
 
@@ -105,7 +130,17 @@ for each kind.
 ## The runner
 
 The queue: closing goals, pending choices to apply, landings, upkeep tasks without a due
-date, goal tasks by priority, upkeep tasks with a due date, then the sweep. Each task runs in
+date, goal tasks by priority, upkeep tasks with a due date, then the sweep. The agents get
+the vault and the clones as working folders (`{dirs}` in the agent command). A branch that
+another session has checked out makes its task wait, with no failed attempt; an attempt
+counts only on an open task. The first upkeep task makes the Upkeep goal.
+
+A project with `pull_requests: false` has no forge: the runner opens no pull requests, and
+**Land** merges each branch into the default branch of the local clone, with a merge commit
+(in a temporary worktree when the default branch is not checked out). Such a project's truth
+is the clone's own default branch, not `origin`'s: new branches start there, and staleness
+and "on the default branch" read it. The agents run the runner's own binary (`CARTO_BIN`), so
+a runner and its agents never run two versions of the tool. Each task runs in
 its own worktree under `~/.cartographer/worktrees/`, with a claim, a session log, and a time
 budget. Claims and the lease are versioned (Specification 6.2), so each is a commit. The
 lease lasts one hour and is renewed every twenty minutes, so a long run makes few commits. A
@@ -118,13 +153,15 @@ task that is not done when its session ends counts as a failed attempt; two make
 | `.claude-plugin/plugin.json` | the manifest |
 | `.mcp.json` | the MCP server: `bin/carto mcp` |
 | `hooks/hooks.json` | prompt, before (the rules), guard, stop |
-| `bin/carto` | runs `$CARTO_BIN`, else `~/.cartographer/bin/carto`, else `build/carto`; a hook with no binary passes quietly |
+| `bin/carto` | runs `$CARTO_BIN` (the runner sets it to its own binary, so its agents run the same code), else `$CARTO_HOME/bin/carto`, else `~/.cartographer/bin/carto`, else `build/carto`; a hook with no binary passes quietly |
 | `skills/` | `carto` (the front door), `carto-map`, `carto-check`, `carto-goal` |
 | `agents/` | `checker` and `reviewer`, both read-only |
 
 Approval needs the user's own words: the prompt hook records each prompt, and `approve`,
 `undo`, `answer`, `choose`, and `defer` accept only words the user wrote in the last 30
-minutes. The guard refuses an agent's direct write to declared state, computed fields,
+minutes. For `approve`, a prompt must hold the verb (approve or reject) and name the change:
+every word of its title, its id, its name, or a document it creates. "Approve all" covers
+the changes proposed before the prompt. The guard refuses an agent's direct write to declared state, computed fields,
 rendered blocks, and checks.
 
 ## Not built yet

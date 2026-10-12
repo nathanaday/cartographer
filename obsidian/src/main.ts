@@ -23,6 +23,13 @@ export default class CartographerPlugin extends Plugin {
 	private mapChanged = debounce(() => Date.now() > this.ownUntil && this.refreshBlocks(), 1500, true);
 	/** Until this time, changes of the map come from the plugin's own act, which renders the blocks itself. */
 	private ownUntil = 0;
+	/** Projects with documents edited by hand, committed after a pause (Specification 6.4). */
+	private edited = new Set<string>();
+	private commitEdits = debounce(() => {
+		const projects = [...this.edited];
+		this.edited.clear();
+		for (const p of projects) run(this.bin(), this.abs(p), ["snapshot"]).catch(() => undefined);
+	}, 20000, true);
 
 	async onload(): Promise<void> {
 		this.settings = { ...DEFAULTS, ...((await this.loadData()) as Partial<Settings>) };
@@ -35,6 +42,10 @@ export default class CartographerPlugin extends Plugin {
 		this.registerView(PANEL, (leaf) => new Panel(leaf, this));
 		this.addRibbonIcon("map", "Cartographer", () => void this.openPanel());
 		this.registerEvent(this.app.vault.on("modify", (f) => f instanceof TFile && f.extension === "md" && this.projectOf(f.path) !== null && this.mapChanged()));
+		for (const event of ["modify", "create", "delete"] as const) {
+			this.registerEvent(this.app.vault.on(event as "modify", (f) => this.noteEdit(f.path)));
+		}
+		this.registerEvent(this.app.vault.on("rename", (f, old) => (this.noteEdit(f.path), this.noteEdit(old))));
 
 		this.addCommand({ id: "open-panel", name: "Open the side panel", callback: () => void this.openPanel() });
 		this.addCommand({ id: "undo", name: "Undo last act", callback: () => this.withProject((p) => this.act(p, ["undo"], "Undone")) });
@@ -45,6 +56,18 @@ export default class CartographerPlugin extends Plugin {
 			this.addCommand({ id: `new-${kind}`, name: `New ${kind}`, callback: () => this.withProject((p) => this.newEntity(p, kind)) });
 		}
 		this.addSettingTab(new SettingsTab(this.app, this));
+	}
+
+	onunload(): void {
+		this.commitEdits.run();
+	}
+
+	private noteEdit(path: string): void {
+		if (!path.endsWith(".md")) return;
+		const project = this.projectOf(path);
+		if (project === null) return;
+		this.edited.add(project);
+		this.commitEdits();
 	}
 
 	bin(): string | null {

@@ -61,10 +61,57 @@ func TestReachabilityAndStalenessFollowGit(t *testing.T) {
 		t.Errorf("the goal branch changed server/orders once: %v", got)
 	}
 	git(t, dir, "merge", "-q", "--no-ff", "-m", "land", "goal/x")
+	if e.OnDefault("api", onBranch, "goal/x", never) {
+		t.Error("an Env answers for one moment, so it keeps what git said before the merge")
+	}
+	e = &Env{clones: map[string]string{"api": dir}, defaults: map[string]string{}, Default: "main", now: Wall}
 	if !e.OnDefault("api", onBranch, "goal/x", never) {
 		t.Error("after a merge, the branch commit is on main")
 	}
 	if got := e.ChangedSince("api", "", r, never); len(got) == 0 {
 		t.Error("an empty path means the whole repository")
+	}
+}
+
+// A project that lands locally reads the clone's own default branch, not origin's.
+func TestALocalProjectReadsTheLocalBranch(t *testing.T) {
+	dir := t.TempDir()
+	git(t, dir, "init", "-q", "-b", "main")
+	base := commit(t, dir, "a.go", "a")
+	git(t, dir, "update-ref", "refs/remotes/origin/main", base)
+	git(t, dir, "checkout", "-q", "-b", "goal/x")
+	onBranch := commit(t, dir, "a.go", "b")
+	git(t, dir, "checkout", "-q", "main")
+	git(t, dir, "merge", "-q", "--no-ff", "-m", "land", "goal/x")
+	never := func(string, string) bool { return false }
+	for _, local := range []bool{false, true} {
+		e := &Env{clones: map[string]string{"api": dir}, defaults: map[string]string{}, Default: "main", now: Wall, local: local}
+		if got := e.OnDefault("api", onBranch, "goal/x", never); got != local {
+			t.Errorf("local %v: the landed commit is on the default branch: %v", local, got)
+		}
+		if got := e.ChangedSince("api", "a.go", &core.Result{Commit: base}, never); (len(got) > 0) != local {
+			t.Errorf("local %v: changed since the base: %v", local, got)
+		}
+	}
+}
+
+func TestPathspec(t *testing.T) {
+	for _, c := range []struct {
+		spec, file string
+		want       bool
+	}{
+		{"", "a/b.go", true},
+		{".", "a/b.go", true},
+		{"server", "server/orders/line.go", true},
+		{"server/orders/line.go", "server/orders/line.go", true},
+		{"server/order", "server/orders/line.go", false},
+		{"server/*.go", "server/a/b.go", true},
+		{"*.proto", "sdk/schema/tunnel.proto", true},
+		{"docs/*.md", "docs/a.txt", false},
+		{"app/tunnel/schema", "app/tunnel/schema/tunnel.proto", true},
+	} {
+		if got := pathspec(c.spec, c.file); got != c.want {
+			t.Errorf("pathspec(%q, %q) = %v", c.spec, c.file, got)
+		}
 	}
 }

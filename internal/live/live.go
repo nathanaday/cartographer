@@ -7,8 +7,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nathanaday/cartographer/internal/config"
@@ -17,14 +19,50 @@ import (
 	"github.com/nathanaday/cartographer/internal/vault"
 )
 
-// Env reads the world for one project.
+// Env reads the world for one project, at one moment: it keeps what git said, so a new
+// load of the project makes a new Env.
 type Env struct {
 	VaultRoot string
 	clones    map[string]string // short repository name -> local clone
 	defaults  map[string]string // short repository name -> default branch
 	Default   string
 	SweepAt   string // "HH:MM" of the nightly sweep
+	local     bool   // pull_requests: false: work lands in the clones' own branches, not on origin
 	now       func() time.Time
+
+	// What git said, for the life of this Env: one project load asks the same questions
+	// for many results, and each answer costs a process.
+	mu      sync.Mutex
+	answers map[string]string
+	ranges  map[string][]commitFiles
+}
+
+type commitFiles struct {
+	sha   string
+	files []string
+}
+
+// ask runs git once for each distinct question and keeps its output; "" with false is a failure.
+func (e *Env) ask(args ...string) (string, bool) {
+	key := strings.Join(args, "\x00")
+	e.mu.Lock()
+	if out, ok := e.answers[key]; ok {
+		e.mu.Unlock()
+		return strings.TrimPrefix(out, "\x00"), out != "\x00fail"
+	}
+	e.mu.Unlock()
+	b, err := exec.Command("git", args...).Output()
+	out := string(b)
+	if err != nil {
+		out = "\x00fail"
+	}
+	e.mu.Lock()
+	if e.answers == nil {
+		e.answers = map[string]string{}
+	}
+	e.answers[key] = out
+	e.mu.Unlock()
+	return strings.TrimPrefix(out, "\x00"), err == nil
 }
 
 // New builds the environment of a project folder. It reads the project document's
@@ -43,6 +81,8 @@ func New(projectFolder, vaultRoot string, cfg *config.Config) (*Env, error) {
 		if s := md.Str(d.FM["sweep_at"]); s != "" {
 			e.SweepAt = s
 		}
+		v := strings.ToLower(md.Str(d.FM["pull_requests"]))
+		e.local = v == "false" || v == "no"
 		repos, _ := d.FM["repositories"].([]any)
 		for _, r := range repos {
 			remote, branch, _ := strings.Cut(md.Str(r), "@")
@@ -137,7 +177,10 @@ func (e *Env) defaultOf(repo string) string {
 
 // head returns the ref to compare against: origin/<branch> when it exists, else <branch>.
 func (e *Env) head(dir, branch string) string {
-	if exec.Command("git", "-C", dir, "rev-parse", "--verify", "--quiet", "origin/"+branch).Run() == nil {
+	if e.local {
+		return branch
+	}
+	if _, ok := e.ask("-C", dir, "rev-parse", "--verify", "--quiet", "origin/"+branch); ok {
 		return "origin/" + branch
 	}
 	return branch
@@ -149,7 +192,8 @@ func (e *Env) OnDefault(repo, commit, ref string, landed func(repo, ref string) 
 	if dir == "" || commit == "" {
 		return ref == e.defaultOf(repo) || landed(repo, ref)
 	}
-	return exec.Command("git", "-C", dir, "merge-base", "--is-ancestor", commit, e.head(dir, e.defaultOf(repo))).Run() == nil
+	_, ok := e.ask("-C", dir, "merge-base", "--is-ancestor", commit, e.head(dir, e.defaultOf(repo)))
+	return ok
 }
 
 // ChangedSince returns the commits in <commit>..<default> that touch path.
@@ -171,22 +215,78 @@ func (e *Env) BranchChangedSince(repo, ref, path string, r *core.Result) []strin
 }
 
 func (e *Env) log(dir string, r *core.Result, head, path string) []string {
-	args := []string{"-C", dir, "log", "--format=%H"}
-	if r.Commit != "" && exec.Command("git", "-C", dir, "cat-file", "-e", r.Commit+"^{commit}").Run() == nil {
-		args = append(args, r.Commit+".."+head)
+	var span []string
+	if _, ok := e.ask("-C", dir, "cat-file", "-e", r.Commit+"^{commit}"); r.Commit != "" && ok {
+		span = []string{r.Commit + ".." + head}
 	} else {
-		args = append(args, "--since="+r.Date.Format("2006-01-02T15:04:05"), head)
+		span = []string{"--since=" + r.Date.Format("2006-01-02T15:04:05"), head}
 	}
-	spec := strings.TrimRight(path, "/")
-	if spec == "" {
-		spec = "."
+	var out []string
+	for _, c := range e.commits(dir, span) {
+		for _, f := range c.files {
+			if pathspec(strings.TrimRight(path, "/"), f) {
+				out = append(out, c.sha)
+				break
+			}
+		}
 	}
-	args = append(args, "--", spec)
-	out, err := exec.Command("git", args...).Output()
-	if err != nil {
-		return nil
+	return out
+}
+
+// commits returns the commits of a span with the files each one changed, newest first.
+func (e *Env) commits(dir string, span []string) []commitFiles {
+	key := dir + "\x00" + strings.Join(span, "\x00")
+	e.mu.Lock()
+	cached, ok := e.ranges[key]
+	e.mu.Unlock()
+	if ok {
+		return cached
 	}
-	return strings.Fields(string(out))
+	b, err := exec.Command("git", append([]string{"-C", dir, "log", "--format=%x01%H", "--name-only"}, span...)...).Output()
+	var out []commitFiles
+	if err == nil {
+		for _, l := range strings.Split(string(b), "\n") {
+			switch {
+			case strings.HasPrefix(l, "\x01"):
+				out = append(out, commitFiles{sha: l[1:]})
+			case l != "" && len(out) > 0:
+				out[len(out)-1].files = append(out[len(out)-1].files, l)
+			}
+		}
+	}
+	e.mu.Lock()
+	if e.ranges == nil {
+		e.ranges = map[string][]commitFiles{}
+	}
+	e.ranges[key] = out
+	e.mu.Unlock()
+	return out
+}
+
+// pathspec reports whether a changed file falls under a path as git reads a pathspec: the
+// whole tree ("" or "."), the file itself, a folder that holds it, or a glob whose * also
+// matches a slash.
+func pathspec(spec, file string) bool {
+	switch {
+	case spec == "" || spec == ".":
+		return true
+	case strings.ContainsAny(spec, "*?["):
+		var b strings.Builder
+		b.WriteString("^")
+		for _, r := range spec {
+			switch r {
+			case '*':
+				b.WriteString(".*")
+			case '?':
+				b.WriteString(".")
+			default:
+				b.WriteString(regexp.QuoteMeta(string(r)))
+			}
+		}
+		re, err := regexp.Compile(b.String() + "(/.*)?$")
+		return err == nil && re.MatchString(file)
+	}
+	return file == spec || strings.HasPrefix(file, spec+"/")
 }
 
 // Clone returns the local clone of a repository by its short name.

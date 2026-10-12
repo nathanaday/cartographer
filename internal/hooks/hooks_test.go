@@ -121,6 +121,19 @@ func TestGuard(t *testing.T) {
 	if r := deny(map[string]any{"tool_name": "Write", "tool_input": map[string]any{"file_path": filepath.Join(e.clone, "x.go"), "content": "package x"}}); r != "" {
 		t.Errorf("a code write was refused: %q", r)
 	}
+	goal := func(name, from, to string) map[string]any {
+		return map[string]any{"tool_name": "Edit", "tool_input": map[string]any{"file_path": filepath.Join(e.project, "Goals", name+".md"), "old_string": from, "new_string": to}}
+	}
+	draft := "Make checkout survive a recommendation outage"
+	if r := deny(goal(draft, "None. shop-api was attached", "- **adopt** [[API Standards]] · [[shop-web]]\n\nshop-api was attached")); r != "" {
+		t.Errorf("an agent's revision of a draft goal was refused: %q", r)
+	}
+	if r := deny(goal(draft, "status: draft", "status: active")); !strings.Contains(r, "status") {
+		t.Errorf("an agent started a draft goal: %q", r)
+	}
+	if r := deny(goal("Add currency to order lines", "- **add** [[Shop Data Schema#DS-4]]", "- **add** [[Shop Data Schema#DS-9]]")); !strings.Contains(r, "Map changes") {
+		t.Errorf("an edit of an active goal's Map changes: %q", r)
+	}
 }
 
 func TestStopRemindsOnce(t *testing.T) {

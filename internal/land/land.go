@@ -6,6 +6,7 @@ package land
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"sort"
 	"strings"
@@ -54,6 +55,9 @@ func Targets(p *core.Project, key string) (string, []Target, error) {
 	if _, whole := p.ReadyToLand(goal); !whole {
 		return "", nil, fmt.Errorf("[[%s]] is not ready to land: every task must be done, and a repository must be left to land", goal)
 	}
+	if !p.Reviewed(goal) {
+		return "", nil, fmt.Errorf("[[%s]] is not ready to land: the review has not passed; the runner reviews it when every task is done", goal)
+	}
 	definitions := map[string]bool{}
 	for _, t := range p.Tasks[goal] {
 		if p.Type(t.Target) == "contract" {
@@ -83,15 +87,20 @@ func Land(folder string, p *core.Project, key string, clone func(repo string) st
 		if dir == "" {
 			return landed, fmt.Errorf("no local clone of %s on this machine", t.Repo)
 		}
-		if _, err := run(dir, "gh", "pr", "view", t.Branch, "--json", "state"); err != nil {
-			return landed, fmt.Errorf("%s has no pull request for %s yet; the runner opens it after the review (carto run)", t.Repo, t.Branch)
-		}
-		if _, err := run(dir, "gh", "pr", "merge", t.Branch, "--merge"); err != nil {
-			return landed, err
-		}
-		sha, err := run(dir, "gh", "pr", "view", t.Branch, "--json", "mergeCommit", "-q", ".mergeCommit.oid")
-		if err != nil || sha == "" {
-			return landed, fmt.Errorf("%s merged, but its merge commit is unknown: %v", t.Repo, err)
+		var sha string
+		if PullRequests(p) {
+			if _, err := run(dir, "gh", "pr", "view", t.Branch, "--json", "state"); err != nil {
+				return landed, fmt.Errorf("%s has no pull request for %s yet; the runner opens it after the review (carto run)", t.Repo, t.Branch)
+			}
+			if _, err := run(dir, "gh", "pr", "merge", t.Branch, "--merge"); err != nil {
+				return landed, err
+			}
+			sha, err = run(dir, "gh", "pr", "view", t.Branch, "--json", "mergeCommit", "-q", ".mergeCommit.oid")
+			if err != nil || sha == "" {
+				return landed, fmt.Errorf("%s merged, but its merge commit is unknown: %v", t.Repo, err)
+			}
+		} else if sha, err = Merge(dir, p.Default, t.Branch, "Merge "+t.Branch+" ("+key+")", run); err != nil {
+			return landed, fmt.Errorf("%s: %w", t.Repo, err)
 		}
 		if len(sha) > 7 {
 			sha = sha[:7]
@@ -114,4 +123,67 @@ func Land(folder string, p *core.Project, key string, clone func(repo string) st
 		landed = append(landed, t.Repo)
 	}
 	return landed, nil
+}
+
+// PullRequests reports whether the project lands through pull requests (the default), or
+// by a merge in the local clone, for repositories that have no forge.
+func PullRequests(p *core.Project) bool {
+	v := strings.ToLower(p.S(p.Project, "pull_requests"))
+	return v != "false" && v != "no"
+}
+
+// Merge merges branch into the default branch base of a clone, with a merge commit, and
+// returns the commit. When base is checked out, it merges there and needs a clean tree;
+// else it merges in a temporary worktree and moves base only if base did not move.
+func Merge(dir, base, branch, message string, run Exec) (string, error) {
+	if _, err := run(dir, "git", "rev-parse", "--verify", "--quiet", "refs/heads/"+branch); err != nil {
+		return "", fmt.Errorf("no branch %s in %s", branch, dir)
+	}
+	list, err := run(dir, "git", "worktree", "list", "--porcelain")
+	if err != nil {
+		return "", err
+	}
+	at, cur := "", ""
+	for _, l := range strings.Split(list, "\n") {
+		if strings.HasPrefix(l, "worktree ") {
+			cur = strings.TrimPrefix(l, "worktree ")
+		}
+		if l == "branch refs/heads/"+base {
+			at = cur
+		}
+	}
+	if at != "" {
+		if st, _ := run(at, "git", "status", "--porcelain", "--untracked-files=no"); st != "" {
+			return "", fmt.Errorf("%s has uncommitted changes on %s; commit or stash them, then land again", at, base)
+		}
+		if _, err := run(at, "git", "merge", "--no-ff", "-m", message, branch); err != nil {
+			run(at, "git", "merge", "--abort")
+			return "", fmt.Errorf("%s does not merge cleanly into %s: %v", branch, base, err)
+		}
+		return run(at, "git", "rev-parse", "HEAD")
+	}
+	old, err := run(dir, "git", "rev-parse", "refs/heads/"+base)
+	if err != nil {
+		return "", err
+	}
+	tmp, err := os.MkdirTemp("", "carto-land-")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(tmp)
+	if _, err := run(dir, "git", "worktree", "add", "--detach", tmp, base); err != nil {
+		return "", err
+	}
+	defer run(dir, "git", "worktree", "remove", "--force", tmp)
+	if _, err := run(tmp, "git", "merge", "--no-ff", "-m", message, branch); err != nil {
+		return "", fmt.Errorf("%s does not merge cleanly into %s: %v", branch, base, err)
+	}
+	sha, err := run(tmp, "git", "rev-parse", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	if _, err := run(dir, "git", "update-ref", "refs/heads/"+base, sha, old); err != nil {
+		return "", fmt.Errorf("%s moved during the merge; land again: %v", base, err)
+	}
+	return sha, nil
 }

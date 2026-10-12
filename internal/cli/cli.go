@@ -54,7 +54,8 @@ Write
   carto render [--project P] [--examples]  write the tool fields and the canvases
   carto record --report FILE [--project P] write a check from a report (CI, or by hand)
   carto record --inbox [--project P]       record the reports that CI left in .carto/inbox/
-  carto propose --title T --ops FILE       propose declared operations for the user to approve (FILE "-" reads stdin)
+  carto propose --title T --ops FILE       propose declared operations for the user to approve (FILE "-" reads stdin);
+                                           --replaces C withdraws an agent's proposed change C
 
 The user's own acts (the Obsidian plugin runs these; the guard refuses them to agents)
   carto approve CHANGE|GOAL | reject CHANGE|GOAL | undo   (a draft goal: approve starts it, reject drops it)
@@ -62,8 +63,8 @@ The user's own acts (the Obsidian plugin runs these; the guard refuses them to a
   carto new KIND NAME --description D      make a system (--code), service (--repository --path [--system S]...),
                                            module (--repository --path), interface, or contract (--code)
   carto answer QUESTION N [--words W]     choose option N of a question
-  carto choose FINDING N [--words W]      choose option N of a finding
-  carto defer DOCUMENT|GOAL#TN DATE        hide a goal, question, finding, or task's line until DATE
+  carto choose FINDING... N [--words W]   choose option N of one or more findings
+  carto defer DOCUMENT|GOAL#TN... DATE     hide goals, questions, findings, or tasks' lines until DATE
   carto retry GOAL#TN --words HINT         clear a stuck task's attempts, with a hint for the agent
   carto take GOAL#TN                       do a task yourself: the runner no longer starts it
   carto drop GOAL#TN --words REASON        drop a task
@@ -71,6 +72,8 @@ The user's own acts (the Obsidian plugin runs these; the guard refuses them to a
   carto lint RULE ENTITY N                 decide on a lint result: 1 fix it on the map, 2 waive
   carto gesture CANVAS                     read an edit of a canvas as one act, and lay the canvas out again
   carto seen                               mark the dashboard seen
+  carto snapshot                           commit the edits of documents made outside an act
+                                           (the plugin runs it after a pause, the Stop hook after a turn)
   carto close GOAL                         close a goal whose work is met, done, and landed
   carto land GOAL | Upkeep#TN              merge the pull requests of a goal or an upkeep task
 
@@ -87,10 +90,10 @@ place of git, the claims, and the clock), and --json where it prints.
 `
 
 type opts struct {
-	project, sim, title, ops, report, words, on string
-	description, code, repository, path         string
-	examples, inbox, asJSON, once               bool
-	roots, systems                              multi
+	project, sim, title, ops, report, words, on   string
+	description, code, repository, path, replaces string
+	examples, inbox, asJSON, once                 bool
+	roots, systems                                multi
 }
 
 type multi []string
@@ -106,6 +109,7 @@ func parse(name string, args []string) (*opts, []string, error) {
 	fs.StringVar(&o.sim, "sim", "", "")
 	fs.StringVar(&o.title, "title", "", "")
 	fs.StringVar(&o.ops, "ops", "", "")
+	fs.StringVar(&o.replaces, "replaces", "", "")
 	fs.StringVar(&o.report, "report", "", "")
 	fs.StringVar(&o.words, "words", "", "")
 	fs.StringVar(&o.on, "on", "", "")
@@ -247,6 +251,21 @@ func dispatch(cmd string, o *opts, pos []string, stdin io.Reader, stdout io.Writ
 		return s.gesture()
 	case "propose":
 		return s.propose()
+	case "snapshot":
+		f, err := s.folder(cmd)
+		if err != nil {
+			return err
+		}
+		n, err := vault.Snapshot(vault.Root(f), f)
+		if err != nil {
+			return err
+		}
+		msg := fmt.Sprintf("%d files committed", n)
+		if n == 1 {
+			msg = "1 file committed"
+		}
+		s.print(map[string]int{"files": n}, msg)
+		return nil
 	case "run":
 		return s.run()
 	}
@@ -415,7 +434,7 @@ func (s *session) record() error {
 
 func (s *session) userAct(cmd string) error {
 	p, env, folder, err := s.open(cmd)
-	if err != nil {
+	if err != nil && !(errors.Is(err, core.ErrNoProject) && (cmd == "approve" || cmd == "reject")) {
 		return err
 	}
 	t := now()
@@ -446,9 +465,12 @@ func (s *session) userAct(cmd string) error {
 			words = cmd + "d in Obsidian"
 		}
 		var c *change.Doc
-		if p.Type(s.pos[0]) == "goal" {
+		if ix.Types[s.pos[0]] == "goal" {
 			op := map[string]string{"approve": "goal.approve", "reject": "goal.drop"}[cmd]
-			c, err = change.UserAct(ix, w, cmd+" the goal "+s.pos[0], []change.Op{{Op: op, Doc: s.pos[0]}}, t)
+			if c, err = change.UserAct(ix, w, cmd+" the goal "+s.pos[0], []change.Op{{Op: op, Doc: s.pos[0]}}, t); err != nil {
+				return err
+			}
+			return report(c, cmd+" the goal "+s.pos[0])
 		} else if cmd == "approve" {
 			c, err = change.Approve(ix, w, s.pos[0], words, t)
 		} else {
@@ -516,32 +538,38 @@ func (s *session) userAct(cmd string) error {
 	defer k.Writer().Abort()
 	switch cmd {
 	case "answer", "choose":
-		if err := want(s.pos, 2, cmd); err != nil {
-			return err
+		if len(s.pos) < 2 || cmd == "answer" && len(s.pos) != 2 {
+			return fmt.Errorf("%s takes a document and an option number; run carto help", cmd)
 		}
-		n, err := strconv.Atoi(s.pos[1])
+		last := s.pos[len(s.pos)-1]
+		n, err := strconv.Atoi(last)
 		if err != nil {
-			return fmt.Errorf("%q is not an option number", s.pos[1])
+			return fmt.Errorf("%q is not an option number", last)
 		}
-		if cmd == "answer" {
-			err = k.Answer(s.pos[0], n, s.o.words)
-		} else {
-			err = k.Choose(s.pos[0], n, s.o.words)
-		}
-		if err != nil {
-			return err
+		for _, doc := range s.pos[:len(s.pos)-1] {
+			if cmd == "answer" {
+				err = k.Answer(doc, n, s.o.words)
+			} else {
+				err = k.Choose(doc, n, s.o.words)
+			}
+			if err != nil {
+				return err
+			}
 		}
 	case "defer":
-		if err := want(s.pos, 2, "defer"); err != nil {
-			return err
+		if len(s.pos) < 2 {
+			return errors.New("defer takes documents and a date; run carto help")
 		}
-		if strings.Contains(s.pos[0], "#") {
-			err = k.DeferTask(s.pos[0], s.pos[1])
-		} else {
-			err = k.Defer(s.pos[0], s.pos[1])
-		}
-		if err != nil {
-			return err
+		until := s.pos[len(s.pos)-1]
+		for _, doc := range s.pos[:len(s.pos)-1] {
+			if strings.Contains(doc, "#") {
+				err = k.DeferTask(doc, until)
+			} else {
+				err = k.Defer(doc, until)
+			}
+			if err != nil {
+				return err
+			}
 		}
 	case "retry", "take", "drop", "request":
 		if err := want(s.pos, 1, cmd); err != nil {
@@ -659,6 +687,12 @@ func (s *session) run() error {
 		Home:   config.Home(),
 		Max:    max,
 		Budget: time.Duration(budget) * time.Minute,
+		Dirs:   []string{vault.Root(folder)},
+	}
+	for _, repo := range app.Repositories(folder) {
+		if dir := c.Clone(repo); dir != "" {
+			r.Dirs = append(r.Dirs, dir)
+		}
 	}
 	return r.Run(context.Background(), s.o.once)
 }
@@ -755,8 +789,26 @@ func (s *session) propose() error {
 	if err != nil {
 		return err
 	}
-	c, err := change.Propose(ix, s.o.title, ops, "", now())
-	if err != nil {
+	var c *change.Doc
+	if change.DraftOnly(ops) {
+		_, env, _, err := s.open("propose")
+		if err != nil {
+			return err
+		}
+		t := now()
+		w := app.Writer(folder)
+		defer w.Abort()
+		if c, err = change.Draft(ix, w, s.o.title, ops, "", t); err != nil {
+			return err
+		}
+		if err := app.Commit(w, folder, env, c, t, "draft "+s.o.title); err != nil {
+			return err
+		}
+	} else if s.o.replaces != "" {
+		if c, err = change.Replace(ix, s.o.replaces, s.o.title, ops, "", now()); err != nil {
+			return err
+		}
+	} else if c, err = change.Propose(ix, s.o.title, ops, "", now()); err != nil {
 		return err
 	}
 	s.print(map[string]any{"change": c.Name, "id": c.ID, "status": c.Status, "summary": c.Acts[0].Summary}, c.Name+": "+c.Status)

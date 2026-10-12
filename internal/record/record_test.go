@@ -99,7 +99,7 @@ func TestADivergenceOpensAFinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(out.Opened) != 1 || !strings.Contains(out.Opened[0], "recs-server uses https---api.segment.io") {
+	if len(out.Opened) != 1 || !strings.Contains(out.Opened[0], "recs-server uses api.segment.io without declaring it") {
 		t.Fatalf("opened %v", out.Opened)
 	}
 }
@@ -137,5 +137,33 @@ func TestASweep(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("the core does not read the sweep's section as a check")
+	}
+}
+
+func TestTitle(t *testing.T) {
+	for in, want := range map[string]string{
+		"algo-sandbox uses [[seq-run]] without declaring it":               "algo-sandbox uses seq-run without declaring it",
+		"model-garden uses leaderboard.json` (repository root) without it": "model-garden uses leaderboard.json (repository root) without it",
+		"tools/detect_image/main.cpp in p3-edge is in no entity":           "tools › detect_image › main.cpp in p3-edge is in no entity",
+		"core-agent uses /tmp/p3-edge/<slug>/raster-<name>.png":            "core-agent uses tmp › p3-edge › slug › raster-name.png",
+		"recs-server uses `https://api.segment.io`":                        "recs-server uses api.segment.io",
+		"a " + strings.Repeat("word ", 30):                                 "a " + strings.TrimSpace(strings.Repeat("word ", 23)),
+	} {
+		if got := title(in); got != want {
+			t.Errorf("%q:\n got %q\nwant %q", in, got, want)
+		}
+	}
+}
+
+func TestDepKey(t *testing.T) {
+	for in, want := range map[string]string{
+		"`iot` (AWS IoT Core control-plane API: CreateThing)": "iot",
+		"leaderboard.json (repository root)":                  "leaderboard.json",
+		" hooks.slack.com ":                                   "hooks.slack.com",
+		"[[Gateway Image]]":                                   "[[Gateway Image]]",
+	} {
+		if got := depKey(in); got != want {
+			t.Errorf("%q: got %q, want %q", in, got, want)
+		}
 	}
 }

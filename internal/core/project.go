@@ -4,8 +4,10 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -111,11 +113,17 @@ type Project struct {
 	Validation  []Issue
 }
 
+// ErrNoProject is the error of a folder that holds no project document yet.
+var ErrNoProject = errors.New("holds no carto-project document")
+
 // Load indexes a project folder and computes everything.
 func Load(folder string, env Env) (*Project, error) {
 	abs, err := filepath.Abs(folder)
 	if err != nil {
 		return nil, err
+	}
+	if _, err := os.Stat(abs); errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("%s %w", folder, ErrNoProject)
 	}
 	p := &Project{Folder: abs, Env: env, Docs: map[string]*md.Doc{}}
 	var paths []string
@@ -145,7 +153,7 @@ func Load(folder string, env Env) (*Project, error) {
 	}
 	projects := p.Of("project")
 	if len(projects) == 0 {
-		return nil, fmt.Errorf("%s holds no carto-project document", folder)
+		return nil, fmt.Errorf("%s %w", folder, ErrNoProject)
 	}
 	p.Project = projects[0]
 	p.Default = p.strOr(p.Project, "default_branch", "main")

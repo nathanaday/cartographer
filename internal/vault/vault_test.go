@@ -118,3 +118,47 @@ func TestCommitWaitsForTheIndexLock(t *testing.T) {
 		t.Fatalf("the commit did not wait for the lock: %v", err)
 	}
 }
+
+// A snapshot commits the project's documents edited outside an act, new and removed ones
+// too, and leaves canvases, runtime state, and other folders alone.
+func TestSnapshotCommitsEditsByHand(t *testing.T) {
+	root := t.TempDir()
+	run := func(args ...string) string {
+		out, err := git(root, args...)
+		if err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+		return out
+	}
+	run("init", "-q")
+	run("config", "user.name", "t")
+	run("config", "user.email", "t@t")
+	folder := filepath.Join(root, "Acme")
+	os.MkdirAll(filepath.Join(folder, "Services"), 0o755)
+	for _, f := range []string{"Acme.md", "Services/api.md", "Services/old.md", "Acme.canvas"} {
+		os.WriteFile(filepath.Join(folder, f), []byte("v1"), 0o644)
+	}
+	os.WriteFile(filepath.Join(root, "notes.md"), []byte("v1"), 0o644)
+	run("add", "-A")
+	run("commit", "-qm", "init")
+	if n, err := Snapshot(root, folder); n != 0 || err != nil {
+		t.Fatalf("a snapshot of a clean vault: %d %v", n, err)
+	}
+
+	os.WriteFile(filepath.Join(folder, "Acme.md"), []byte("v2"), 0o644)
+	os.WriteFile(filepath.Join(folder, "Services", "web.md"), []byte("new"), 0o644)
+	os.Remove(filepath.Join(folder, "Services", "old.md"))
+	os.WriteFile(filepath.Join(folder, "Acme.canvas"), []byte("v2"), 0o644)
+	os.WriteFile(filepath.Join(root, "notes.md"), []byte("v2"), 0o644)
+	n, err := Snapshot(root, folder)
+	if err != nil || n != 3 {
+		t.Fatalf("snapshot: %d %v", n, err)
+	}
+	if msg := run("log", "-1", "--format=%s"); strings.TrimSpace(msg) != "carto: 3 files edited by hand" {
+		t.Fatalf("the message: %s", msg)
+	}
+	status := run("status", "--porcelain")
+	if strings.Contains(status, "Acme/") && !strings.Contains(status, "Acme/Acme.canvas") || !strings.Contains(status, "notes.md") || strings.Count(status, "\n") != 2 {
+		t.Fatalf("after the snapshot:\n%s", status)
+	}
+}

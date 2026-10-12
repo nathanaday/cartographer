@@ -188,6 +188,19 @@ describe("Cartographer in Obsidian", () => {
 		await until("the commit", clean);
 	}, TIMEOUT);
 
+	it("commits an edit by hand after a pause", async () => {
+		await o.page.evaluate(async () => {
+			const app = (window as any).app;
+			const file = app.vault.getFileByPath("MyShop/Systems/Storefront.md");
+			await app.vault.process(file, (text: string) => text.replace("## Notes\n", "## Notes\n\nA note by hand.\n"));
+		});
+		await until("the edit on disk", () => o.read("MyShop/Systems/Storefront.md").then((t) => t.includes("A note by hand.")));
+		expect(await o.git(["status", "--porcelain"])).toContain("Storefront.md");
+		await o.page.evaluate(() => (window as any).app.plugins.plugins.cartographer.commitEdits.run());
+		await until("the commit", clean);
+		expect(await o.git(["log", "-1", "--format=%s"])).toContain("carto: 1 file edited by hand");
+	}, TIMEOUT);
+
 	it("logs no error in the console", () => {
 		expect(o.errors).toEqual([]);
 	});

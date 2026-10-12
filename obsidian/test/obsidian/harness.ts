@@ -1,4 +1,5 @@
 import { type ChildProcess, execFile, spawn } from "node:child_process";
+import { openSync } from "node:fs";
 import { copyFile, cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { homedir, tmpdir } from "node:os";
@@ -9,7 +10,7 @@ import { type Browser, chromium, type Page } from "playwright-core";
 const OBSIDIAN = process.env.OBSIDIAN_BINARY ?? "/Applications/Obsidian.app/Contents/MacOS/Obsidian";
 /** Obsidian's own data folder, where it keeps the app updates that it downloaded. */
 const OBSIDIAN_DATA = process.env.OBSIDIAN_DATA ?? path.join(homedir(), "Library/Application Support/obsidian");
-/** OBSIDIAN_SHOW=1 leaves the test window on screen, to watch a run. */
+/** OBSIDIAN_SHOW=1 leaves the test window on screen, to watch a run. OBSIDIAN_LOG=file writes its console there, from the start. */
 const SHOW = process.env.OBSIDIAN_SHOW === "1";
 const PLUGIN = fileURLToPath(new URL("../../", import.meta.url));
 const REPO = path.join(PLUGIN, "..");
@@ -30,7 +31,7 @@ export async function buildCarto(): Promise<Carto> {
 
 export interface ObsidianInstance {
 	page: Page;
-	/** The vault root; the project is its MyShop folder. */
+	/** The vault root; the project is a folder in it (MyShop by default). */
 	vault: string;
 	errors: string[];
 	carto(args: string[]): Promise<string>;
@@ -44,7 +45,16 @@ export interface ObsidianInstance {
  * installs the plugin from obsidian/dist, and opens the vault in a separate Obsidian with
  * its own profile. The user's own Obsidian, vaults, and ~/.cartographer are not touched.
  */
-export async function launchObsidian(bin: Carto): Promise<ObsidianInstance> {
+/** The vault to copy, its project folder, and the folders that hold the clones of its repositories. */
+export interface Source {
+	vault: string;
+	project: string;
+	roots?: string[];
+}
+
+const MYSHOP: Source = { vault: path.join(REPO, "testdata", "vault"), project: "MyShop" };
+
+export async function launchObsidian(bin: Carto, source: Source = MYSHOP): Promise<ObsidianInstance> {
 	await stat(path.join(PLUGIN, "dist", "main.js")).catch(() => {
 		throw new Error("dist has no build. Run npm run test:obsidian, which builds it first.");
 	});
@@ -54,21 +64,21 @@ export async function launchObsidian(bin: Carto): Promise<ObsidianInstance> {
 	const home = path.join(root, "carto-home");
 	const pluginDir = path.join(vault, ".obsidian/plugins/cartographer");
 	const env: NodeJS.ProcessEnv = { ...process.env, CARTO_HOME: home, GIT_AUTHOR_NAME: "Test", GIT_AUTHOR_EMAIL: "test@example.com", GIT_COMMITTER_NAME: "Test", GIT_COMMITTER_EMAIL: "test@example.com" };
-	const project = path.join(vault, "MyShop");
+	const project = path.join(vault, source.project);
 	const carto = (args: string[]) => run(bin.path, [...args, "--project", project], { cwd: project, env });
 	const git = (args: string[]) => run("git", args, { cwd: vault, env });
 
 	let app: Running | undefined;
 	try {
 		await mkdir(home);
-		await cp(path.join(REPO, "testdata", "vault"), vault, { recursive: true });
+		await cp(source.vault, vault, { recursive: true });
 		await mkdir(pluginDir, { recursive: true });
 		for (const file of PLUGIN_FILES) await copyFile(path.join(PLUGIN, "dist", file), path.join(pluginDir, file));
 		await writeFile(path.join(pluginDir, "data.json"), JSON.stringify({ binaryPath: bin.path }, null, 2));
 		await git(["init", "-q", "-b", "main"]);
 		await git(["add", "-A"]);
-		await git(["commit", "-q", "-m", "test: the MyShop vault"]);
-		await run(bin.path, ["setup", "--project", project], { cwd: vault, env });
+		await git(["commit", "-q", "--allow-empty", "-m", "test: the vault"]);
+		await run(bin.path, ["setup", "--project", project, ...(source.roots ?? []).flatMap((r) => ["--root", r])], { cwd: vault, env });
 		await carto(["render"]);
 
 		await mkdir(profile);
@@ -77,6 +87,7 @@ export async function launchObsidian(bin: Carto): Promise<ObsidianInstance> {
 		app = await start(profile, env);
 		await app.page.evaluate(async () => {
 			const plugins = (window as any).app.plugins;
+			if (plugins.plugins.cartographer?._loaded) return; // the vault turned it on already
 			plugins.setEnable(true);
 			await plugins.enablePluginAndSave("cartographer");
 		});
@@ -116,7 +127,11 @@ process.once("exit", () => {
 
 async function start(profile: string, env: NodeJS.ProcessEnv): Promise<Running> {
 	const port = await freePort();
-	const child = spawn(OBSIDIAN, [`--user-data-dir=${profile}`, `--remote-debugging-port=${port}`], { stdio: "ignore", env });
+	const log = process.env.OBSIDIAN_LOG;
+	const child = spawn(OBSIDIAN, [`--user-data-dir=${profile}`, `--remote-debugging-port=${port}`, ...(log ? ["--enable-logging=stderr"] : [])], {
+		stdio: log ? ["ignore", "ignore", openSync(log, "a")] : "ignore",
+		env,
+	});
 	children.add(child);
 	child.once("exit", () => children.delete(child));
 	let browser: Browser | undefined;

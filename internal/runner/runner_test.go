@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,7 @@ const goal = "Add currency to order lines"
 // fakeAgent completes a task by ticking its box in the goal, as the work tool would, and
 // fails T5 every time. It exits 0 for a sweep.
 const fakeAgent = `#!/bin/sh
+[ -n "$BIN_OUT" ] && printf '%s' "$CARTO_BIN" > "$BIN_OUT"
 task=$(printf '%s' "$1" | sed -n 's/.*Task: \(T[0-9]*\),.*/\1/p')
 if [ -z "$task" ]; then echo '{"result":"swept","session_id":"x"}'; exit 0; fi
 if [ "$task" = "T5" ]; then echo "tests fail" >&2; exit 1; fi
@@ -62,6 +64,9 @@ func setup(t *testing.T) (*Runner, string) {
 
 func TestTheRunnerDrainsTheQueue(t *testing.T) {
 	r, root := setup(t)
+	bin := filepath.Join(t.TempDir(), "bin")
+	t.Setenv("BIN_OUT", bin)
+	t.Setenv("CARTO_BIN", "")
 	var out strings.Builder
 	r.Out = &out
 	if err := r.Run(context.Background(), false); err != nil {
@@ -93,6 +98,9 @@ func TestTheRunnerDrainsTheQueue(t *testing.T) {
 	if log := testvault.Git(t, root, "log", "--format=%s"); !strings.Contains(log, "carto: claim for session") || !strings.Contains(log, "carto: the runner ended") {
 		t.Fatalf("claims and the lease are not versioned:\n%s", log)
 	}
+	if self, _ := os.Executable(); testvault.Read(t, bin) != self {
+		t.Fatalf("the agents ran carto %q, not the runner's own binary", testvault.Read(t, bin))
+	}
 }
 
 // A claim left by a runner that ended counts as a failed attempt when the next starts.
@@ -120,5 +128,56 @@ func TestOneRunnerAtATime(t *testing.T) {
 	os.WriteFile(filepath.Join(root, ".carto", "runner.json"), []byte(`{"host":"`+host+`","pid":1,"until":"2026-10-09T12:00:00"}`), 0o644)
 	if err := r.Run(context.Background(), false); err == nil || !strings.Contains(err.Error(), "the runner runs on") {
 		t.Fatalf("a second runner started: %v", err)
+	}
+}
+
+// The default command gives the agent the vault and the clones, but not its own folder twice.
+func TestCommandAddsTheFolders(t *testing.T) {
+	r := &Runner{Folder: "/v/P3", Dirs: []string{"/v", "/code/a", "/code/b"}}
+	got := strings.Join(r.command(&Job{Kind: "sweep", Dir: "/code/a", Session: "s1"}), " ")
+	if !strings.Contains(got, "--session-id s1") || !strings.HasSuffix(got, "--add-dir /v --add-dir /code/b") || strings.Contains(got, "{dirs}") {
+		t.Fatalf("the command: %s", got)
+	}
+}
+
+// A branch that another session has checked out makes the runner wait, not fail.
+func TestWorktreeOfABusyBranch(t *testing.T) {
+	testvault.Identity(t)
+	clone := t.TempDir()
+	testvault.Git(t, clone, "init", "-q", "-b", "main")
+	testvault.Git(t, clone, "commit", "-q", "--allow-empty", "-m", "start")
+	other := filepath.Join(t.TempDir(), "other")
+	testvault.Git(t, clone, "worktree", "add", "-q", "-b", "goal/x", other)
+	r := &Runner{Home: t.TempDir()}
+	_, err := r.worktree(clone, "repo", "goal/x", "main", false)
+	var busy *busyError
+	real, _ := filepath.EvalSymlinks(other)
+	if !errors.As(err, &busy) || busy.at != real {
+		t.Fatalf("a busy branch: %v", err)
+	}
+	if dir, err := r.worktree(clone, "repo", "goal/y", "main", false); err != nil || dir == "" {
+		t.Fatalf("a free branch: %v", err)
+	}
+}
+
+// A new branch starts at origin's default branch, or at the clone's own when work lands locally.
+func TestWorktreeStartsAtTheBase(t *testing.T) {
+	testvault.Identity(t)
+	clone := t.TempDir()
+	testvault.Git(t, clone, "init", "-q", "-b", "main")
+	testvault.Git(t, clone, "commit", "-q", "--allow-empty", "-m", "origin")
+	origin := testvault.Git(t, clone, "rev-parse", "HEAD")
+	testvault.Git(t, clone, "update-ref", "refs/remotes/origin/main", origin)
+	testvault.Git(t, clone, "commit", "-q", "--allow-empty", "-m", "landed locally")
+	local := testvault.Git(t, clone, "rev-parse", "HEAD")
+	r := &Runner{Home: t.TempDir()}
+	for branch, want := range map[string]string{"goal/pr": origin, "goal/local": local} {
+		dir, err := r.worktree(clone, "repo", branch, "main", branch == "goal/local")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := testvault.Git(t, dir, "rev-parse", "HEAD"); got != want {
+			t.Errorf("%s starts at %s, want %s", branch, got, want)
+		}
 	}
 }

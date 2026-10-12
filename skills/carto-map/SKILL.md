@@ -9,8 +9,8 @@ The map holds what exists (services, modules, interfaces) and what must be true 
 
 ## Set up a project
 
-1. If no project exists, propose its document (`create` of `<Project>.md`, type `carto-project`, see references/templates.md) with its repositories (remotes such as `github.com/org/repo`), `default_branch`, `landing`, and `platform`.
-2. Run `carto setup --project <folder> --root <folder that holds the clones>` so this machine knows the clones. Report a remote with no clone.
+1. If no project exists, propose its document: `propose` with `project` set to the new folder (relative to the vault) and one `create` of `<Project>.md` at the folder's top, type `carto-project` (see references/templates.md), with its repositories (remotes such as `github.com/org/repo`), `default_branch`, `landing`, and `platform`. Obsidian cannot show the proposal before the project exists, so ask the user to approve it here, naming the change.
+2. After the approval, run `carto setup --project <folder> --root <folder that holds the clones>` so this machine knows the clones. Report a remote with no clone.
 
 ## Map the code: one proposal for each repository
 

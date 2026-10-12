@@ -56,6 +56,16 @@ func (s *Server) open(project string) (*core.Project, core.Env, string, error) {
 	return p, env, folder, err
 }
 
+// openNew is open for the tools that work before the project document exists: the
+// proposal that creates it, and its approval.
+func (s *Server) openNew(project string) (core.Env, string, error) {
+	p, env, folder, err := s.open(project)
+	if p == nil && !errors.Is(err, core.ErrNoProject) {
+		return nil, "", err
+	}
+	return env, folder, nil
+}
+
 // Text is a tool result for a person or an agent to read.
 type Text struct {
 	Text string `json:"text"`
@@ -159,10 +169,11 @@ func (s *Server) lintTool(_ context.Context, _ *mcp.CallToolRequest, in LintIn) 
 
 type ProposeIn struct {
 	ProjectIn
-	Title   string      `json:"title" jsonschema:"a short title of the change"`
-	Ops     []change.Op `json:"ops" jsonschema:"the operations: create, add, remove, set, line, clause, goal.approve"`
-	Because string      `json:"because,omitempty" jsonschema:"an answered question or a finding with a chosen option: apply the change that option carries, as the user's act"`
-	Session string      `json:"session,omitempty"`
+	Title    string      `json:"title" jsonschema:"a short title of the change"`
+	Ops      []change.Op `json:"ops" jsonschema:"the operations: create, add, remove, set, line, clause, goal.approve"`
+	Because  string      `json:"because,omitempty" jsonschema:"an answered question or a finding with a chosen option: apply the change that option carries, as the user's act"`
+	Replaces string      `json:"replaces,omitempty" jsonschema:"the id or name of an agent's proposed change that this one replaces: the tool withdraws it, so the user decides on one"`
+	Session  string      `json:"session,omitempty"`
 }
 
 type ChangeOut struct {
@@ -181,7 +192,7 @@ func out(c *change.Doc) ChangeOut {
 }
 
 func (s *Server) proposeTool(_ context.Context, _ *mcp.CallToolRequest, in ProposeIn) (*mcp.CallToolResult, ChangeOut, error) {
-	_, env, folder, err := s.open(in.Project)
+	env, folder, err := s.openNew(in.Project)
 	if err != nil {
 		return nil, ChangeOut{}, err
 	}
@@ -199,7 +210,22 @@ func (s *Server) proposeTool(_ context.Context, _ *mcp.CallToolRequest, in Propo
 	if err != nil {
 		return nil, ChangeOut{}, err
 	}
-	c, err := change.Propose(ix, in.Title, in.Ops, in.Session, s.opts.Now())
+	if change.DraftOnly(in.Ops) {
+		now := s.opts.Now()
+		w := app.Writer(folder)
+		defer w.Abort()
+		c, err := change.Draft(ix, w, in.Title, in.Ops, in.Session, now)
+		if err != nil {
+			return nil, ChangeOut{}, err
+		}
+		return nil, out(c), app.Commit(w, folder, env, c, now, "draft "+in.Title)
+	}
+	var c *change.Doc
+	if in.Replaces != "" {
+		c, err = change.Replace(ix, in.Replaces, in.Title, in.Ops, in.Session, s.opts.Now())
+	} else {
+		c, err = change.Propose(ix, in.Title, in.Ops, in.Session, s.opts.Now())
+	}
 	if err != nil {
 		return nil, ChangeOut{}, err
 	}
@@ -213,7 +239,7 @@ type ApproveIn struct {
 }
 
 func (s *Server) approveTool(_ context.Context, _ *mcp.CallToolRequest, in ApproveIn) (*mcp.CallToolResult, ChangeOut, error) {
-	_, env, folder, err := s.open(in.Project)
+	env, folder, err := s.openNew(in.Project)
 	if err != nil {
 		return nil, ChangeOut{}, err
 	}
@@ -226,9 +252,13 @@ func (s *Server) approveTool(_ context.Context, _ *mcp.CallToolRequest, in Appro
 		return nil, ChangeOut{}, err
 	}
 	now := s.opts.Now()
-	said, ok := consent.FindAny(now, c.ID, c.Name)
+	verbs, act := []string{"approv", "accept"}, "approve"
+	if in.Reject {
+		verbs, act = []string{"reject", "decline"}, "reject"
+	}
+	said, ok := consent.Decides(now, verbs, consent.Change{ID: c.ID, Name: c.Name, Title: c.Title, Creates: c.Creates(), Proposed: c.ProposedAt()})
 	if !ok {
-		return nil, ChangeOut{}, fmt.Errorf("the user has not named %s (%s) in a prompt in the last 30 minutes; ask the user to approve it in their own words, naming the change, or to approve it in Obsidian", c.ID, c.Name)
+		return nil, ChangeOut{}, fmt.Errorf("the user has not said to %s %q (%s) in a prompt in the last 30 minutes; ask the user to %s it in their own words, naming the change by its title or id, or to use Obsidian", act, c.Title, c.ID, act)
 	}
 	w := app.Writer(folder)
 	defer w.Abort()
@@ -431,7 +461,7 @@ func (s *Server) MCP() *mcp.Server {
 	mcp.AddTool(server, &mcp.Tool{Name: "lint", Annotations: readOnly(),
 		Description: "Validation and lint of the map; with goal, of the map as that draft goal would leave it. Run it on every draft goal before the user sees it."}, safe("lint", s.lintTool))
 	mcp.AddTool(server, &mcp.Tool{Name: "propose",
-		Description: "The only way an agent changes declared state (entities, relations, clauses, waivers, goals). It checks the operations and writes a proposed change for the user to approve. With because, it applies the change of the option the user chose in a question or a finding, at once and once, as the user's act."}, safe("propose", s.proposeTool))
+		Description: "The only way an agent changes declared state (entities, relations, clauses, waivers, goals). It checks the operations and writes a proposed change for the user to approve. Operations that only create draft goals apply at once: the draft is the proposal, and the user approves the draft. With because, it applies the change of the option the user chose in a question or a finding, at once and once, as the user's act."}, safe("propose", s.proposeTool))
 	mcp.AddTool(server, &mcp.Tool{Name: "approve",
 		Description: "Apply (or, with reject, reject) a proposed change after the user approved it in their own words in this or any session, naming the change's id or name. The tool checks the user's recent prompts and accepts nothing else."}, safe("approve", s.approveTool))
 	mcp.AddTool(server, &mcp.Tool{Name: "undo",

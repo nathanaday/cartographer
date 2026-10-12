@@ -23,7 +23,7 @@ Cartographer keeps a map of a software ecosystem in an Obsidian vault: systems, 
 
 These are the user's acts. The tools check the user's own recent prompt, so quote it exactly.
 
-- **Approve or reject a proposed change**: call `approve` with the change's id or name (and `reject: true` to reject). The user's prompt must name the change.
+- **Approve or reject a proposed change**: call `approve` with the change's id or name (and `reject: true` to reject). The user's prompt must say to approve (or reject) and name the change (every word of its title, its id, its name, or a document it creates), or say "all" for the changes proposed before it. Approve only what the user's words cover.
 - **Answer a question**: call `work` with `action: answer`, `doc`, `chosen` (the option number), and `words` (the user's words). Then, if the option carries a `Change:`, call `propose` with `because` set to the question and the operations that carry out that change. It applies at once, once, as the user's act.
 - **Choose a finding's option**: `work` with `action: choose`, then `propose` with `because` for its change.
 - **Defer**: `work` with `action: defer`, `doc`, `until`, and `words`.
@@ -32,6 +32,7 @@ These are the user's acts. The tools check the user's own recent prompt, so quot
 ## Rules
 
 - Declared state changes only through `propose`: the fields `systems`, `adopts`, `interfaces`, `uses`, `stores`, `platform`, and `entry`, and the sections Clauses, Requirements, Waivers, and Map changes. Checks and findings change through `record`; tasks, questions, and logs through `work`. The guard refuses a direct write to any of these, and to tool fields and rendered blocks.
+- To correct a proposed change that waits for the user, propose the corrected one with `replaces` set to the old change. The tool withdraws the old one, so the user decides on one. Do not ask the user to reject the old one.
 - Prose and fields for the reader (Purpose, Notes, `description`, `runtime`, `deploy`, `package`) you edit directly with Edit.
 - You never run `carto approve`, `undo`, `act`, `answer`, `choose`, `defer`, or `seen` in a shell. Those are the user's acts in Obsidian.
 - End with one or two lines that say what is done, and link the documents that hold the detail. Do not report the vault's version control.

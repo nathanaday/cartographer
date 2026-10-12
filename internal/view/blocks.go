@@ -4,6 +4,7 @@ package view
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -530,8 +531,8 @@ func Goals(p *core.Project, _ string) []string {
 		ready += len(p.Ready(g))
 	}
 	out := table([]string{"Goal", "Status", "Progress", "Ready", "Waiting on you", "Agents", "Last activity"}, rows)
-	return append(out, "", fmt.Sprintf("Run queue: %s · %d agents at work of %d · %d obligations to sweep, next sweep %s. **Run now**",
-		plural(ready, "ready task"), len(p.ClaimsOf("")), maxAgents(p), sweep, p.Env.NextSweep().Format("2006-01-02 15:04")))
+	return append(out, "", fmt.Sprintf("Run queue: %s · %s at work of %d · %d obligations to sweep, next sweep %s. **Run now**",
+		plural(ready, "ready task"), plural(len(p.ClaimsOf("")), "agent"), maxAgents(p), sweep, p.Env.NextSweep().Format("2006-01-02 15:04")))
 }
 
 func stamp(v any) string {
@@ -594,6 +595,7 @@ type Item struct {
 	Entities []string `json:"entities,omitempty"`
 	DeferKey string   `json:"defer_key,omitempty"`
 	Defer    string   `json:"defer,omitempty"`
+	Members  []string `json:"members,omitempty"` // a line for several findings: an option applies to each
 	score    int
 	at       time.Time
 	notNow   bool
@@ -648,9 +650,13 @@ func AttentionItems(p *core.Project) (items, deferred []Item) {
 		if p.S(c, "status") != "proposed" {
 			continue
 		}
-		summary := strings.TrimSpace(strings.ReplaceAll(md.Section(p.Docs[c].Body, "Summary"), "\n- ", "; "))
-		summary = strings.TrimPrefix(summary, "- ")
-		put(Item{Kind: "approve-change", Key: md.Str(p.FM(c, "id")), Doc: c, Text: fmt.Sprintf("**Approve** the change %s: %s", L(c), strings.TrimSuffix(summary, ".")+"."),
+		var ops []string
+		for _, l := range strings.Split(md.Section(p.Docs[c].Body, "Summary"), "\n") {
+			if l = strings.TrimSpace(l); strings.HasPrefix(l, "- ") {
+				ops = append(ops, strings.TrimSuffix(l[2:], "."))
+			}
+		}
+		put(Item{Kind: "approve-change", Key: md.Str(p.FM(c, "id")), Doc: c, Text: fmt.Sprintf("**Approve** the change %s: %s.", L(c), Brief(ops)),
 			Actions: []string{"Approve", "Reject"}, score: 0, at: md.Time(p.FM(c, "created"))})
 	}
 	landing := p.S(p.Project, "landing")
@@ -664,10 +670,10 @@ func AttentionItems(p *core.Project) (items, deferred []Item) {
 		if p.Standing(g) && landing == "user" {
 			for _, t := range tasks {
 				key := g + "#" + t.ID
-				put(Item{Kind: "land", Key: key, Doc: g, Text: fmt.Sprintf("**Land** %s of %s: %s. The reviewer passed; %s, branch `%s`.", t.ID, L(g), t.Text, p.TaskRepo(t), p.TaskBranch(t)),
+				put(Item{Kind: "land", Key: key, Doc: g, Text: fmt.Sprintf("**Land** %s of %s: %s. Done at %s; %s, branch `%s`.", t.ID, L(g), strings.TrimSuffix(t.Text, "."), shortSHA(t.F["commit"]), p.TaskRepo(t), p.TaskBranch(t)),
 					Actions: []string{"Land", "Request changes"}, notNow: true, DeferKey: key, Defer: t.F["defer"], score: 1, at: md.Time(t.F["done"])})
 			}
-		} else if whole && landing == "user" {
+		} else if whole && landing == "user" && p.Reviewed(g) {
 			m, n := p.GoalProgress(g, time.Time{})
 			var open []string
 			for _, b := range p.GoalBranches(g) {
@@ -686,6 +692,7 @@ func AttentionItems(p *core.Project) (items, deferred []Item) {
 			}
 		}
 	}
+	groups, groupOrder := map[string][]Item{}, []string(nil)
 	for _, n := range p.Of("finding") {
 		f := p.Finding[n]
 		if f.Status != "open" {
@@ -694,12 +701,51 @@ func AttentionItems(p *core.Project) (items, deferred []Item) {
 		idle := int(now.Sub(md.Time(p.FM(n, "updated"))).Hours() / 24)
 		stuck := f.Chosen != "" && idle >= p.NudgeAfter
 		if f.Chosen == "" || stuck {
-			why := ""
+			why, group := "", ""
 			if stuck {
 				why = fmt.Sprintf(" Its chosen option has not moved in %d days.", idle)
 			}
-			put(Item{Kind: "decide", Key: n, Doc: n, Text: "**Decide** on " + L(n) + "." + why, Options: Options(p, n), DeferKey: n, Defer: p.S(n, "defer"),
-				score: 1, at: md.Time(p.FM(n, "found"))})
+			it := Item{Kind: "decide", Key: n, Doc: n, Text: "**Decide** on " + L(n) + "." + why, Options: Options(p, n), DeferKey: n, Defer: p.S(n, "defer"),
+				score: 1, at: md.Time(p.FM(n, "found"))}
+			if d := md.Time(p.S(n, "defer")); !stuck && (d.IsZero() || !d.After(now)) {
+				if group = findingGroup(p, n); group != "" {
+					for _, o := range it.Options {
+						group += "|" + o.Title
+					}
+				}
+			}
+			if group == "" {
+				put(it)
+				continue
+			}
+			if groups[group] == nil {
+				groupOrder = append(groupOrder, group)
+			}
+			groups[group] = append(groups[group], it)
+		}
+	}
+	// Violations alone on their clause share a line with the others of their contract on
+	// the same entity.
+	for _, g := range groupOrder {
+		its := groups[g]
+		if !strings.HasPrefix(g, "violation|") || len(its) != 1 {
+			continue
+		}
+		f := its[0].Key
+		key := strings.Replace(g, "violation|"+p.S(f, "clause"), "violation-on|"+p.Finding[f].Entity+"|"+p.Finding[f].Contract, 1)
+		if groups[key] == nil {
+			groupOrder = append(groupOrder, key)
+		}
+		groups[key] = append(groups[key], its[0])
+		delete(groups, g)
+	}
+	for _, g := range groupOrder {
+		switch its := groups[g]; len(its) {
+		case 0:
+		case 1:
+			put(its[0])
+		default:
+			put(findingLine(p, g, its))
 		}
 	}
 	held := map[string]bool{}
@@ -708,8 +754,9 @@ func AttentionItems(p *core.Project) (items, deferred []Item) {
 			held[p.S(q, "holds")] = true
 		}
 	}
+	proposals := proposedFixes(p)
 	for _, i := range p.Lint {
-		if !held["lint "+i.Rule+" [["+i.Entity+"]]"] {
+		if !held["lint "+i.Rule+" [["+i.Entity+"]]"] && proposals[i] == "" {
 			put(Item{Kind: "lint", Key: i.Rule + "|" + i.Entity, Doc: i.Entity, Text: "**Decide** on lint " + i.Rule + ": " + i.Message + ".",
 				Options: []Option{{"1", "Fix it on the map", true}, {"2", "Waive", false}}, at: now})
 		}
@@ -793,6 +840,9 @@ func Health(p *core.Project, _ string) []string {
 					}
 				} else {
 					state = "waiting in the run queue"
+					if b := p.Blocked(task); len(b) > 0 {
+						state = "waiting for your answer to " + L(b[0])
+					}
 					for _, c := range p.ClaimsOf(l.Name) {
 						if c.Task == task.ID {
 							state = "an agent works on it"
@@ -832,8 +882,13 @@ func Health(p *core.Project, _ string) []string {
 		}
 		out = append(out, s+".")
 	}
+	proposals := proposedFixes(p)
 	for _, i := range p.Lint {
-		out = append(out, "- Lint "+i.Rule+": "+i.Message+".")
+		if c := proposals[i]; c != "" {
+			out = append(out, "- Lint "+i.Rule+": "+i.Message+" → "+L(c)+", proposed.")
+		} else {
+			out = append(out, "- Lint "+i.Rule+": "+i.Message+".")
+		}
 	}
 	var never []string
 	for _, e := range append(append(p.Of("system"), p.Of("service")...), p.Of("module")...) {
@@ -882,6 +937,15 @@ func Since(p *core.Project, _ string) []string {
 		d1, k1 := p.GoalTasks(g, time.Time{})
 		if m0 != m1 || d0 != d1 {
 			out = append(out, fmt.Sprintf("- %s: obligations %d/%d → %d/%d, tasks %d/%d → %d/%d.", L(g), m0, n0, m1, n1, d0, k0, d1, k1))
+		}
+	}
+	for _, g := range p.Of("goal") {
+		if at, follow := closedAt(p, g); !at.IsZero() && at.After(lv) {
+			s := "- Closed: " + L(g)
+			if follow > 0 {
+				s += fmt.Sprintf(", with %s for after the landing in its Task details", plural(follow, "follow-up"))
+			}
+			out = append(out, s+".")
 		}
 	}
 	for _, g := range p.Of("goal") {
@@ -940,14 +1004,18 @@ func Since(p *core.Project, _ string) []string {
 	out = append(out, "- Newly met on the default branch: "+grouped(newly["met"])+". Newly violated: "+grouped(newly["violated"])+".")
 	var opened, resolved []string
 	for _, n := range p.Of("finding") {
-		if md.Time(p.FM(n, "found")).After(lv) {
+		at := md.Time(p.FM(n, "created"))
+		if at.IsZero() {
+			at = md.Time(p.FM(n, "found"))
+		}
+		if at.After(lv) {
 			opened = append(opened, n)
 		}
-		if f := p.Finding[n]; f.Status == "resolved" && md.Time(f.Resolved).After(lv) {
+		if f := p.Finding[n]; f.Status == "resolved" && f.ResolvedAt.After(lv) {
 			resolved = append(resolved, n)
 		}
 	}
-	out = append(out, "- Findings opened: "+orNone(joinLinks(opened, " · "))+". Resolved: "+orNone(joinLinks(resolved, " · "))+".")
+	out = append(out, "- Findings opened: "+findingsBrief(p, opened)+". Resolved: "+findingsBrief(p, resolved)+".")
 	var answered []string
 	for _, q := range p.Of("question") {
 		if a := md.Time(p.FM(q, "answered")); !a.IsZero() && a.After(lv) {
@@ -1057,4 +1125,213 @@ func RenderExamples(p *core.Project, name, text string) string {
 		}
 		return b.String()
 	})
+}
+
+var opLine = regexp.MustCompile("^\\*\\*(\\w+)\\*\\* (?:(\\w+) (\\[\\[[^\\]]+\\]\\])|`([^`]+)` (.+) on (\\[\\[[^\\]]+\\]\\]))$")
+
+// Brief says what a change does in one line. Up to three operations are listed as they
+// are; more are grouped: the documents created of each type, and the entities each field
+// change falls on.
+func Brief(ops []string) string {
+	if len(ops) <= 3 {
+		return strings.Join(ops, "; ")
+	}
+	type group struct {
+		head  string
+		items []string
+	}
+	var groups []*group
+	byHead := map[string]*group{}
+	other := 0
+	for _, op := range ops {
+		m := opLine.FindStringSubmatch(op)
+		var head, item string
+		switch {
+		case m == nil:
+			other++
+			continue
+		case m[2] != "":
+			head, item = "**"+m[1]+"** "+m[2], m[3]
+		default:
+			head, item = "**"+m[1]+"** `"+m[4]+"` "+m[5], m[6]
+		}
+		g := byHead[head]
+		if g == nil {
+			g = &group{head: head}
+			byHead[head] = g
+			groups = append(groups, g)
+		}
+		g.items = append(g.items, item)
+	}
+	var out []string
+	for _, g := range groups {
+		switch {
+		case len(g.items) == 1 && strings.Count(g.head, "`") == 0:
+			out = append(out, g.head+" "+g.items[0])
+		case len(g.items) == 1:
+			out = append(out, g.head+" on "+g.items[0])
+		case strings.Count(g.head, "`") == 0:
+			out = append(out, fmt.Sprintf("%s ×%d: %s", g.head, len(g.items), strings.Join(g.items, ", ")))
+		default:
+			out = append(out, fmt.Sprintf("%s on %d entities", g.head, len(g.items)))
+		}
+	}
+	if other > 0 {
+		out = append(out, fmt.Sprintf("%d more", other))
+	}
+	return strings.Join(out, "; ")
+}
+
+// proposedFixes maps each lint result to a proposed change with an operation that names
+// the documents of the result: two of them, or all when it names fewer. The change holds
+// the result: approving or rejecting it is the decision.
+func proposedFixes(p *core.Project) map[core.Issue]string {
+	type opLinks struct {
+		change string
+		names  map[string]bool
+	}
+	var ops []opLinks
+	for _, c := range p.Of("change") {
+		if p.S(c, "status") != "proposed" {
+			continue
+		}
+		for _, l := range strings.Split(md.Section(p.Docs[c].Body, "Summary"), "\n") {
+			names := map[string]bool{}
+			for _, k := range md.Links(l) {
+				names[k.Name] = true
+			}
+			if len(names) > 0 {
+				ops = append(ops, opLinks{c, names})
+			}
+		}
+	}
+	out := map[core.Issue]string{}
+	for _, i := range p.Lint {
+		links := md.Links(i.Message)
+		need := min(2, len(links))
+		for _, op := range ops {
+			n := 0
+			for _, k := range links {
+				if op.names[k.Name] {
+					n++
+				}
+			}
+			if need > 0 && n >= need {
+				out[i] = op.change
+				break
+			}
+		}
+	}
+	return out
+}
+
+// findingGroup is what the findings of one Attention line share: the clause of a violation,
+// the entity of a divergence or an absence, or the repository of an unmapped entry point.
+// They share their option titles too, so that an option means the same for each.
+func findingGroup(p *core.Project, n string) string {
+	f := p.Finding[n]
+	switch f.Kind {
+	case "violation":
+		if c := p.S(n, "clause"); c != "" {
+			return "violation|" + c
+		}
+	case "divergence", "absence":
+		if f.Entity != "" {
+			return f.Kind + "|" + f.Entity
+		}
+	case "unmapped":
+		if repo, _, ok := strings.Cut(p.S(n, "key"), ":"); ok {
+			return "unmapped|" + repo
+		}
+	}
+	return ""
+}
+
+// findingLine is one Attention line for findings that share a group. Each finding is
+// linked by what tells it apart, and an option applies to each of them.
+func findingLine(p *core.Project, group string, its []Item) Item {
+	parts := strings.Split(group, "|")
+	kind, on := parts[0], parts[1]
+	var links []string
+	it := Item{Kind: "decide", Key: its[0].Key, Doc: its[0].Doc, Options: its[0].Options, at: its[0].at}
+	for _, m := range its {
+		var label string
+		switch kind {
+		case "violation":
+			label = p.Finding[m.Key].Entity
+		case "violation-on":
+			if l := md.Links(p.FM(m.Key, "clause")); len(l) > 0 {
+				label = l[0].Anchor
+			}
+		case "unmapped":
+			_, label, _ = strings.Cut(p.S(m.Key, "key"), ":")
+		default:
+			label = p.S(m.Key, "key")
+		}
+		if label == "" {
+			label = m.Key
+		}
+		links = append(links, "[["+m.Key+"|"+strings.ReplaceAll(label, "|", "/")+"]]")
+		it.Members = append(it.Members, m.Key)
+		it.score = max(it.score, m.score)
+		if m.at.Before(it.at) {
+			it.at = m.at
+		}
+	}
+	what := map[string]string{
+		"violation":  "violations of " + on,
+		"divergence": "undeclared dependencies of " + L(on),
+		"absence":    "declared relations of " + L(on) + " that the code does not have",
+		"unmapped":   "unmapped entry points in " + filepath.Base(on),
+	}[kind]
+	if kind == "violation-on" {
+		what = "violations of " + p.Finding[its[0].Key].Contract + " in " + L(on)
+	}
+	it.Text = fmt.Sprintf("**Decide** on %d %s: %s.", len(its), what, strings.Join(links, " · "))
+	return it
+}
+
+// findingsBrief names up to five findings, and counts more by kind.
+func findingsBrief(p *core.Project, ns []string) string {
+	if len(ns) <= 5 {
+		return orNone(joinLinks(ns, " · "))
+	}
+	var parts []string
+	for _, k := range [][3]string{{"violation", "violation", "violations"}, {"divergence", "undeclared dependency", "undeclared dependencies"},
+		{"absence", "missing relation", "missing relations"}, {"unmapped", "unmapped entry point", "unmapped entry points"}} {
+		n := 0
+		for _, f := range ns {
+			if p.Finding[f].Kind == k[0] {
+				n++
+			}
+		}
+		if n == 1 {
+			parts = append(parts, "1 "+k[1])
+		} else if n > 1 {
+			parts = append(parts, fmt.Sprintf("%d %s", n, k[2]))
+		}
+	}
+	return fmt.Sprintf("%d (%s; Health lists them)", len(ns), strings.Join(parts, ", "))
+}
+
+func shortSHA(c string) string {
+	if len(c) > 7 {
+		return c[:7]
+	}
+	return c
+}
+
+var closeLine = regexp.MustCompile(`(?m)^- (\d{4}-\d\d-\d\d \d\d:\d\d) every obligation met and every task closed`)
+
+// closedAt returns when a goal closed, from its Log, and its follow-ups for after the landing.
+func closedAt(p *core.Project, g string) (time.Time, int) {
+	if p.S(g, "status") != "done" {
+		return time.Time{}, 0
+	}
+	m := closeLine.FindAllStringSubmatch(md.Section(p.Docs[g].Body, "Log"), -1)
+	if m == nil {
+		return time.Time{}, 0
+	}
+	at, _ := time.Parse("2006-01-02 15:04", m[len(m)-1][1])
+	return at, strings.Count(md.Section(p.Docs[g].Body, "Task details"), "\n- After the goal lands:")
 }

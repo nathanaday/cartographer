@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -94,16 +95,37 @@ func TestApproveNeedsTheUsersWords(t *testing.T) {
 		t.Fatal(msg)
 	}
 	id := out["id"].(string)
-	if _, msg := c.call("approve", map[string]any{"change": id}); !strings.Contains(msg, "has not named") {
+	if _, msg := c.call("approve", map[string]any{"change": id}); !strings.Contains(msg, "has not said to approve") {
 		t.Fatalf("approve without the user's words: %q", msg)
 	}
-	consent.Save("s1", "Yes, approve "+id+" please", now.Add(-time.Minute))
+	consent.Save("s1", "Reject "+id, now.Add(-2*time.Minute))
+	if _, msg := c.call("approve", map[string]any{"change": id}); !strings.Contains(msg, "has not said to approve") {
+		t.Fatalf("approve on the words of a rejection: %q", msg)
+	}
+	consent.Save("s1", "Yes, invoice-worker adopts the schema, I approve", now.Add(-time.Minute))
 	out, msg = c.call("approve", map[string]any{"change": id})
 	if msg != "" || out["status"] != "applied" {
 		t.Fatalf("approve: %v %s", out, msg)
 	}
 	if !strings.Contains(testvault.Read(t, filepath.Join(folder, "Services", "invoice-worker.md")), `adopts: ["[[Shop Data Schema]]"]`) {
 		t.Fatal("the change did not apply")
+	}
+}
+
+// A proposal that only creates a draft goal applies at once: the draft is the proposal.
+func TestADraftGoalAppliesAtOnce(t *testing.T) {
+	c, folder := connect(t)
+	text := "---\nid: goal-dr4ft1\ntype: carto-goal\ndescription: Gift cards.\nstatus: draft\npriority: medium\nafter: []\ndefer: \"\"\nbranch: goal/gift-cards\nresolves: []\naffects: []\nprogress: \"\"\ntasks: \"\"\nlanded: \"\"\nopened: \"\"\nclosed: \"\"\n---\n\n## Intent\n\n> Gift cards.\n\n## Map changes\n\n## Requirements\n\n### G-1\nA gift card pays an order.\n[verify:: test] [on:: [[shop-api]]]\n\n## Tasks\n\n- [ ] T1 [[shop-api]] Take gift cards ^t1\n\n## Log\n"
+	out, msg := c.call("propose", map[string]any{"title": "Draft: Gift cards", "ops": []any{map[string]any{"op": "create", "path": "Goals/Gift cards.md", "text": text}}})
+	if msg != "" || out["status"] != "applied" {
+		t.Fatalf("propose a draft goal: %v %s", out, msg)
+	}
+	if !strings.Contains(testvault.Read(t, filepath.Join(folder, "Goals", "Gift cards.md")), "status: draft") {
+		t.Fatal("the draft goal is not in the vault")
+	}
+	out, msg = c.call("attention", map[string]any{})
+	if msg != "" || !strings.Contains(fmt.Sprint(out), "**Approve** the draft goal [[Gift cards]]") {
+		t.Fatalf("attention: %v %s", out, msg)
 	}
 }
 

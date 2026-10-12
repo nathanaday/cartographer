@@ -88,10 +88,13 @@ func (k *Work) editTask(goal, id string, f func(box string, line string) (string
 	return "", fmt.Errorf("[[%s]] has no task %s", goal, id)
 }
 
-// Log adds a dated line to a goal's Log.
+// Log adds a dated line to a goal's Log and makes it the goal's last activity.
 func (k *Work) Log(goal, line string) error {
 	path, text, err := k.read(goal)
 	if err != nil {
+		return err
+	}
+	if text, err = md.SetField(text, "updated", k.now.Format("2006-01-02T15:04:05")); err != nil {
 		return err
 	}
 	k.w.Put(path, md.AppendToSection(text, "Log", "- "+k.stamp()+" "+strings.TrimSuffix(line, ".")+"."))
@@ -108,7 +111,7 @@ func (k *Work) Done(goal, id, commit string) error {
 		if commit != "" {
 			l = setField(l, "commit", commit)
 		}
-		return setField(l, "done", k.now.Format("2006-01-02")), nil
+		return setField(l, "done", k.now.Format("2006-01-02T15:04")), nil
 	})
 	if err != nil {
 		return err
@@ -148,6 +151,9 @@ func (k *Work) Drop(goal, id, reason string) error {
 func (k *Work) Attempt(goal, id, why string) error {
 	n := 0
 	_, err := k.editTask(goal, id, func(box, l string) (string, error) {
+		if box != " " {
+			return "", fmt.Errorf("%s of %s is closed; an attempt counts only on an open task", id, goal)
+		}
 		n, _ = strconv.Atoi(md.Fields(l)["attempts"])
 		n++
 		return setField(l, "attempts", strconv.Itoa(n)), nil
@@ -173,6 +179,9 @@ func (k *Work) Block(goal, id, blocker string) error {
 
 // Add adds a task to a goal and returns its id. An upkeep task names its source.
 func (k *Work) Add(goal, target, text string, fields map[string]string) (string, error) {
+	if _, ok := k.ix.Paths[goal]; !ok && goal == "Upkeep" {
+		k.upkeep()
+	}
 	path, body, err := k.read(goal)
 	if err != nil {
 		return "", err
@@ -208,6 +217,20 @@ func (k *Work) Add(goal, target, text string, fields map[string]string) (string,
 		}
 	}
 	return id, k.Log(goal, id+" added: "+text)
+}
+
+// upkeep writes the project's standing goal, which the tool keeps: the first upkeep task
+// of a project makes it.
+func (k *Work) upkeep() {
+	ts := k.now.Format("2006-01-02T15:04:05")
+	path := filepath.Join(k.ix.Folder, "Goals", "Upkeep.md")
+	k.w.Put(path, "---\nid: "+newID("goal-")+"\ntype: carto-goal\ndescription: Work in "+filepath.Base(k.ix.Folder)+" that belongs to no other goal.\ntags: []\n"+
+		"created: "+ts+"\nupdated: "+ts+"\nstatus: active\nstanding: true\npriority: medium\nafter: []\ndefer: \"\"\nbranch: \"\"\nresolves: []\naffects: []\n"+
+		"progress: \"\"\ntasks: \"\"\nlanded: \"\"\nopened: "+k.now.Format("2006-01-02")+"\nclosed: \"\"\n---\n\n"+
+		"## Intent\n\nThe project's standing goal. Each task is already the user's decision, so it needs no approval and never closes. Each task has its own branch, `upkeep/t<n>`, and lands alone.\n\n"+
+		"## Tasks\n\n## Task details\n\n## Progress\n\n```cartographer-progress\n```\n\n## Log\n")
+	k.ix.Paths["Upkeep"], k.ix.Types["Upkeep"] = path, "goal"
+	k.log = append(k.log, "made [[Upkeep]], the project's standing goal")
 }
 
 func newID(prefix string) string {
@@ -297,7 +320,7 @@ func (k *Work) Answer(question string, chosen int, words string) error {
 		answer += "\n\n> " + strings.ReplaceAll(w, "\n", "\n> ")
 	}
 	text = md.AppendToSection(text, "Answer", answer)
-	for key, v := range map[string]any{"status": "answered", "answered": k.now.Format("2006-01-02"), "updated": k.now.Format("2006-01-02T15:04:05")} {
+	for key, v := range map[string]any{"status": "answered", "answered": k.now.Format("2006-01-02T15:04"), "updated": k.now.Format("2006-01-02T15:04:05")} {
 		if text, err = md.SetField(text, key, v); err != nil {
 			return err
 		}

@@ -47,7 +47,7 @@ func Open(folder, sim string) (*core.Project, core.Env, error) {
 }
 
 // Resolve returns the project folder a request means: a folder, a configured project's
-// name, or, when key is empty, the only configured project or the project whose
+// name, a folder still to make in an existing one, or, when key is empty, the only configured project or the project whose
 // repositories hold the working folder.
 func Resolve(key, cwd string) (string, error) {
 	if key != "" {
@@ -63,6 +63,11 @@ func Resolve(key, cwd string) (string, error) {
 		for _, p := range cfg.Projects {
 			if filepath.Base(p) == key {
 				return p, nil
+			}
+		}
+		if abs, err := filepath.Abs(key); err == nil {
+			if st, err := os.Stat(filepath.Dir(abs)); err == nil && st.IsDir() {
+				return abs, nil // a new project's folder
 			}
 		}
 		return "", fmt.Errorf("no project %q; the configured projects are %s", key, names(cfg.Projects))

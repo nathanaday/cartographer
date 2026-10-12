@@ -253,3 +253,62 @@ func TestUndoKeepsAnEditByHand(t *testing.T) {
 		t.Fatalf("after undo:\n%s", text)
 	}
 }
+
+// The tool stamps a new document's created and updated times when the act applies it.
+func TestCreateStampsTheTimes(t *testing.T) {
+	root, ix := setup(t)
+	text := "---\nid: svc-zzzzzz\ntype: carto-service\ndescription: A worker.\ncreated: 2030-01-01T00:00:00\nupdated: 2030-01-01T00:00:00\nrepository: github.com/myshop/myshop-api\npath: worker/\n---\n"
+	c, err := Propose(ix, "Add a worker", []Op{{Op: "create", Path: "Services/worker.md", Text: text}}, "", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	later := now.Add(time.Hour)
+	if _, err := commit(t, root, func(w *vault.Writer) (*Doc, error) { return Approve(ix, w, c.ID, "approve", later) }); err != nil {
+		t.Fatal(err)
+	}
+	got := testvault.Read(t, filepath.Join(ix.Folder, "Services", "worker.md"))
+	if !strings.Contains(got, "created: 2026-10-09T12:00:00") || !strings.Contains(got, "updated: 2026-10-09T12:00:00") {
+		t.Fatalf("the times:\n%s", got)
+	}
+}
+
+func TestFileTitle(t *testing.T) {
+	for in, want := range map[string]string{
+		"Suggested: P3 systems": "Suggested - P3 systems",
+		"a/b [x] #1":            "a-b -x- -1",
+		strings.Repeat("é", 90): strings.Repeat("é", 80),
+		"Exclude cobra help and completion from HK-9, with -h and __completeNoDesc (replaces chg-4l0n71)": "Exclude cobra help and completion from HK-9, with -h and __completeNoDesc",
+	} {
+		if got := fileTitle(in); got != want {
+			t.Errorf("%q: %q", in, got)
+		}
+	}
+}
+
+// A corrected proposal withdraws the one it replaces, so the user decides on one.
+func TestReplaceWithdrawsTheOld(t *testing.T) {
+	root, ix := setup(t)
+	op := []Op{{Op: "add", Doc: "invoice-worker", Field: "adopts", Value: "[[Shop Data Schema]]"}}
+	old, err := Propose(ix, "invoice-worker adopts the schema", op, "", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ix, _ = NewIndex(ix.Folder)
+	c, err := Replace(ix, old.ID, "invoice-worker adopts the Shop Data Schema", op, "", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ix, _ = NewIndex(ix.Folder)
+	if got, _ := Find(ix, old.ID); got.Status != "withdrawn" {
+		t.Fatalf("the old change is %s", got.Status)
+	}
+	if !strings.Contains(testvault.Read(t, c.Path), "in place of [["+old.Name+"]]") {
+		t.Fatal("the new change does not name the old one")
+	}
+	if _, err := Replace(ix, old.ID, "again", op, "", now); err == nil {
+		t.Fatal("a withdrawn change was replaced")
+	}
+	if out := testvault.Git(t, root, "status", "--porcelain", "--", "MyShop"); out != "" {
+		t.Fatalf("the replacement left the vault dirty:\n%s", out)
+	}
+}

@@ -59,6 +59,7 @@ Open the project document. Everything else starts there.
 | `carto run` | starts agents for the ready work (the **Run now** button runs it) |
 | `carto undo` | takes back your last act, or the last approved change |
 | `carto check` | validation and lint; exit 1 on a validation error |
+| `carto snapshot` | commits edits of documents made outside an act (the plugin and the Stop hook run it) |
 
 ## Develop
 

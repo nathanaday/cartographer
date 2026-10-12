@@ -33,11 +33,11 @@ The caller gives you:
 
 ## Dependencies
 
-For a service, compare what the code reaches over the network or stores with the map:
+For a service, compare its network and data dependencies with the map. A dependency is what the running service reaches over the network (a host, an API, a broker topic, a bucket, a database) or data it shares with another process (a file, a socket, a shared memory region that another service also reads or writes). A library, a build tool, a base image, a test fixture, or a program it runs is not a dependency: the map does not record them, so do not report them.
 
 - each declared interface, module use, or store that the code has: `convergence`,
 - each one the code does not have: `absence`,
-- each dependency that is not an interface, module, store, or platform service of the map: `divergence`. Name it by its key (a host, a topic, a bucket, a package) in backticks.
+- each dependency that is not an interface, module, store, or platform service of the map: `divergence`. Name it by its key alone, in backticks: a host such as `hooks.slack.com`, a topic, a bucket, or a path. Say what it is in `evidence`.
 
 ## Output
 

@@ -38,6 +38,28 @@ type Doc struct {
 	fresh                             *Act // the act applied in this run, which Seal records
 }
 
+// Creates returns the names of the documents the change creates.
+func (c *Doc) Creates() []string {
+	var out []string
+	for _, a := range c.Acts {
+		for _, op := range a.Ops {
+			if op.Op == "create" {
+				out = append(out, strings.TrimSuffix(filepath.Base(op.Path), ".md"))
+			}
+		}
+	}
+	return out
+}
+
+// ProposedAt returns when the change was proposed: the time of its first act.
+func (c *Doc) ProposedAt() time.Time {
+	if len(c.Acts) == 0 {
+		return time.Time{}
+	}
+	t, _ := time.ParseInLocation("2006-01-02T15:04:05", c.Acts[0].At, time.Local)
+	return t
+}
+
 var opsRe = regexp.MustCompile("(?s)```cartographer-acts\n(.*?)\n```")
 
 // Load reads a change document.
@@ -105,9 +127,13 @@ func stamp(t time.Time) string { return t.Format("2006-01-02T15:04:05") }
 var unsafeName = regexp.MustCompile(`[\\/:*?"<>|#^\[\]]`)
 
 func fileTitle(s string) string {
-	s = strings.TrimSpace(unsafeName.ReplaceAllString(s, "-"))
-	if len(s) > 80 {
-		s = s[:80]
+	s = strings.TrimSpace(unsafeName.ReplaceAllString(strings.ReplaceAll(s, ": ", " - "), "-"))
+	if r := []rune(s); len(r) > 80 {
+		s = string(r[:80])
+		if i := strings.LastIndex(s, " "); i > 40 {
+			s = s[:i]
+		}
+		s = strings.TrimRight(s, " -,(")
 	}
 	return s
 }
@@ -115,14 +141,35 @@ func fileTitle(s string) string {
 // Propose writes a proposed change for the user to approve. It checks the operations
 // first, on a scratch writer, so that a proposal that cannot apply is refused now.
 func Propose(ix *Index, title string, ops []Op, session string, now time.Time) (*Doc, error) {
+	return propose(ix, title, ops, session, nil, now)
+}
+
+// Replace proposes a change in place of an agent's proposed change, which it withdraws,
+// so that the user decides on one.
+func Replace(ix *Index, key, title string, ops []Op, session string, now time.Time) (*Doc, error) {
+	old, err := Find(ix, key)
+	if err != nil {
+		return nil, err
+	}
+	if old.Status != "proposed" || old.By != "agent" {
+		return nil, fmt.Errorf("%s is not an agent's proposed change, so it cannot be replaced", old.Name)
+	}
+	return propose(ix, title, ops, session, old, now)
+}
+
+func propose(ix *Index, title string, ops []Op, session string, old *Doc, now time.Time) (*Doc, error) {
 	if len(ops) == 0 {
 		return nil, errors.New("a change needs at least one operation")
 	}
 	root := vault.Root(ix.Folder)
 	scratch := vault.NewScratch(root)
-	summary, err := Apply(cloneIndex(ix), scratch, ops, now)
+	after := cloneIndex(ix)
+	summary, err := Apply(after, scratch, ops, now)
 	if err != nil {
 		return nil, err
+	}
+	if after.Project() == "" {
+		return nil, fmt.Errorf("%s holds no project document; the first change creates it", ix.Folder)
 	}
 	c := &Doc{ID: newID(), Status: "proposed", By: "agent", Title: title, Acts: []Act{{At: stamp(now), Summary: summary, Ops: ops}}}
 	path := filepath.Join(ix.Folder, "Changes", now.Format("2006-01"), now.Format("2006-01-02 1504")+" "+fileTitle(title)+".md")
@@ -131,9 +178,22 @@ func Propose(ix *Index, title string, ops []Op, session string, now time.Time) (
 	if session != "" {
 		who += " in session " + session
 	}
+	log, message := "- "+now.Format("2006-01-02 15:04")+" proposed by "+who+".", "propose "+title
 	w := vault.NewWriter(root)
-	w.Put(path, render(c, stamp(now), stamp(now), stamp(now), "", []string{"- " + now.Format("2006-01-02 15:04") + " proposed by " + who + "."}))
-	if _, err := w.Commit("propose " + title); err != nil {
+	if old != nil {
+		if old.Path == path {
+			return nil, fmt.Errorf("%s already has this name; give the new change another title", old.Name)
+		}
+		log = "- " + now.Format("2006-01-02 15:04") + " proposed by " + who + ", in place of [[" + old.Name + "]]."
+		message += ", in place of " + old.ID
+		old.Status = "withdrawn"
+		if err := put(w, old, now, "- "+now.Format("2006-01-02 15:04")+" withdrawn: [["+c.Name+"]] replaces it."); err != nil {
+			w.Abort()
+			return nil, err
+		}
+	}
+	w.Put(path, render(c, stamp(now), stamp(now), stamp(now), "", []string{log}))
+	if _, err := w.Commit(message); err != nil {
 		return nil, err
 	}
 	return c, nil
@@ -273,6 +333,41 @@ func put(w *vault.Writer, c *Doc, now time.Time, line string) error {
 	}
 	w.Put(c.Path, render(c, created, stamp(now), proposed, applied, log))
 	return nil
+}
+
+// DraftOnly reports whether every operation creates a draft goal in Goals/. A draft changes
+// nothing on the map: it is itself the proposal, and the user's approval of it starts it.
+func DraftOnly(ops []Op) bool {
+	for _, op := range ops {
+		if op.Op != "create" || !strings.HasPrefix(filepath.ToSlash(op.Path), "Goals/") {
+			return false
+		}
+		d, err := md.Parse(op.Path, op.Text)
+		if err != nil || d.Type != "goal" || md.Str(d.FM["status"]) != "draft" {
+			return false
+		}
+	}
+	return len(ops) > 0
+}
+
+// Draft applies an agent's draft goals into w at once, as one act in a change document of
+// its own, so that the user sees the draft in Attention and Undo takes it back.
+func Draft(ix *Index, w *vault.Writer, title string, ops []Op, session string, now time.Time) (*Doc, error) {
+	if !DraftOnly(ops) {
+		return nil, errors.New("a draft creates draft goals only; propose other operations for the user to approve")
+	}
+	act, err := applyAct(ix, w, ops, now)
+	if err != nil {
+		return nil, err
+	}
+	path := filepath.Join(ix.Folder, "Changes", now.Format("2006-01"), now.Format("2006-01-02 1504")+" "+fileTitle(title)+".md")
+	c := &Doc{Path: path, Name: strings.TrimSuffix(filepath.Base(path), ".md"), ID: newID(), Status: "applied", By: "agent", Title: title, Acts: []Act{act}}
+	c.fresh = &c.Acts[0]
+	who := "the agent"
+	if session != "" {
+		who += " in session " + session
+	}
+	return c, put(w, c, now, "- "+now.Format("2006-01-02 15:04")+" drafted by "+who+". The draft waits for the user's approval.")
 }
 
 // UserAct applies the user's own act into w at once, and records it in this hour's

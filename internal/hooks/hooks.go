@@ -329,7 +329,11 @@ func Refuse(path, old, next string) string {
 	case "change":
 		return "a change document changes only through the propose, approve, and undo tools."
 	}
+	draft := a.Type == "goal" && b.Type == "goal" && md.Str(a.FM["status"]) == "draft" && md.Str(b.FM["status"]) == "draft"
 	for _, f := range change.DeclaredFields {
+		if draft {
+			break // a draft goal is the agent's proposal until the user approves it
+		}
 		if md.Str(a.FM[f]) != md.Str(b.FM[f]) || strings.Join(md.List(a.FM, f), ",") != strings.Join(md.List(b.FM, f), ",") {
 			return fmt.Sprintf("`%s` is declared state; change it with the propose tool, and the user approves it.", f)
 		}
@@ -348,11 +352,11 @@ func Refuse(path, old, next string) string {
 		}
 	}
 	for _, s := range change.DeclaredSections {
-		if md.Section(a.Body, s) != md.Section(b.Body, s) {
+		if !draft && md.Section(a.Body, s) != md.Section(b.Body, s) {
 			return fmt.Sprintf("the %s section is declared state; change it with the propose tool.", s)
 		}
 	}
-	if a.Type == "goal" && md.Section(a.Body, "Tasks") != md.Section(b.Body, "Tasks") {
+	if a.Type == "goal" && !draft && md.Section(a.Body, "Tasks") != md.Section(b.Body, "Tasks") {
 		return "tasks change through the work tool (done, drop, add, attempt, block)."
 	}
 	if (a.Type == "finding" || a.Type == "question") && (md.Section(a.Body, "Options") != md.Section(b.Body, "Options") || md.Section(a.Body, "Answer") != md.Section(b.Body, "Answer")) {
@@ -368,6 +372,7 @@ func Refuse(path, old, next string) string {
 // ---------- stop ----------
 
 func stop(in Input, o Options) any {
+	snapshot(in.Cwd)
 	if in.StopHookActive || in.SessionID == "" {
 		return nil
 	}
@@ -416,4 +421,19 @@ func stop(in Input, o Options) any {
 	st.Reminded = true
 	st.save(in.SessionID)
 	return map[string]any{"decision": "block", "reason": fmt.Sprintf("Cartographer: this session changed files of %s, which have obligations, and no check of them was recorded since. Check them with the carto-check skill before you finish, or say in one line why a check is not needed.", strings.Join(need, ", "))}
+}
+
+// snapshot commits the prose a session edited in the vault it works in, so that each turn
+// leaves the vault clean.
+func snapshot(cwd string) {
+	cfg, err := config.Load()
+	if err != nil || cwd == "" {
+		return
+	}
+	for _, folder := range cfg.Projects {
+		root := vault.Root(folder)
+		if cwd == root || strings.HasPrefix(cwd, root+string(filepath.Separator)) {
+			vault.Snapshot(root, folder)
+		}
+	}
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -201,5 +202,125 @@ func TestNewEntities(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(folder, "Contracts", "Refund Policy.md")); !os.IsNotExist(err) {
 		t.Fatal("undo did not remove the new contract")
+	}
+}
+
+// A new project starts with a proposal that creates its document, and the user approves it
+// before the project exists.
+func TestTheFirstChangeCreatesTheProject(t *testing.T) {
+	testvault.Identity(t)
+	t.Setenv("CARTO_HOME", t.TempDir())
+	root := t.TempDir()
+	testvault.Git(t, root, "init", "-q", "-b", "main")
+	os.WriteFile(filepath.Join(root, "README.md"), []byte("A vault.\n"), 0o644)
+	testvault.Git(t, root, "add", "-A")
+	testvault.Git(t, root, "commit", "-q", "-m", "start")
+	folder := filepath.Join(root, "Acme")
+	p := []string{"--project", folder}
+
+	service := `[{"op":"create","path":"Services/api.md","text":"---\nid: svc-aaaaaa\ntype: carto-service\ndescription: The API.\nrepository: github.com/acme/api\npath: ./\n---\n"}]`
+	if code, _, errs := run(t, service, append([]string{"propose", "--title", "Map api", "--ops", "-"}, p...)...); code == 0 || !strings.Contains(errs, "the first change creates it") {
+		t.Fatalf("a first change without the project document: %d %s", code, errs)
+	}
+	project := `[{"op":"create","path":"Acme.md","text":"---\nid: prj-acme01\ntype: carto-project\ndescription: Acme's services.\nrepositories: [\"github.com/acme/api\"]\ndefault_branch: main\nlanding: user\n---\n\n## Purpose\n"}]`
+	nested := strings.Replace(project, `"path":"Acme.md"`, `"path":"Sub/Acme.md"`, 1)
+	if code, _, errs := run(t, nested, append([]string{"propose", "--title", "Start Acme", "--ops", "-"}, p...)...); code == 0 || !strings.Contains(errs, "at its top") {
+		t.Fatalf("a project document below the project folder: %d %s", code, errs)
+	}
+	code, out, errs := run(t, project, append([]string{"propose", "--title", "Start Acme", "--ops", "-", "--json"}, p...)...)
+	if code != 0 {
+		t.Fatalf("propose the project: %s", errs)
+	}
+	var got struct{ ID string }
+	json.Unmarshal([]byte(out), &got)
+	if code, _, errs := run(t, "", append([]string{"status"}, p...)...); code == 0 || !strings.Contains(errs, "holds no carto-project document") {
+		t.Fatalf("status before the approval: %d %s", code, errs)
+	}
+	if code, _, errs := run(t, "", append([]string{"approve", got.ID}, p...)...); code != 0 {
+		t.Fatalf("approve the project: %s", errs)
+	}
+	if code, out, errs := run(t, "", append([]string{"status"}, p...)...); code != 0 || !strings.Contains(out, "## Attention") {
+		t.Fatalf("status after the approval: %d %s %s", code, out, errs)
+	}
+	if code, _, errs := run(t, strings.Replace(project, "prj-acme01", "prj-acme02", 1), append([]string{"propose", "--title", "Again", "--ops", "-"}, p...)...); code == 0 || !strings.Contains(errs, "exists") {
+		t.Fatalf("a second project document: %d %s", code, errs)
+	}
+	if status := testvault.Git(t, root, "status", "--porcelain"); status != "" {
+		t.Fatalf("the vault is not clean: %s", status)
+	}
+}
+
+// A proposed change that edits a document a lint result names holds the result: Attention
+// asks only for the approval, and Health says where the result stands.
+func TestAProposalHoldsTheLintItFixes(t *testing.T) {
+	testvault.Identity(t)
+	t.Setenv("CARTO_HOME", t.TempDir())
+	root := testvault.New(t)
+	folder := filepath.Join(root, "MyShop")
+	p := []string{"--project", folder, "--sim", filepath.Join(testvault.Repo(), "testdata", "prototype", "simulation.yaml")}
+	if code, _, errs := run(t, "", append([]string{"new", "service", "refund-worker", "--description", "Pays refunds", "--repository", "github.com/myshop/myshop-api", "--path", "refunds/"}, p...)...); code != 0 {
+		t.Fatal(errs)
+	}
+	lint := "lint L3: [[refund-worker]] belongs to no system"
+	if _, out, _ := run(t, "", append([]string{"status"}, p...)...); !strings.Contains(out, "**Decide** on "+lint) {
+		t.Fatalf("no lint line before the proposal:\n%s", out)
+	}
+	other := `[{"op":"add","doc":"invoice-worker","field":"adopts","value":"[[API Standards]]"}]`
+	if code, _, errs := run(t, other, append([]string{"propose", "--title", "invoice-worker adopts the API Standards", "--ops", "-"}, p...)...); code != 0 {
+		t.Fatal(errs)
+	}
+	if _, out, _ := run(t, "", append([]string{"status"}, p...)...); strings.Contains(out, "API Standards]], proposed.") {
+		t.Fatalf("a proposal held a lint result it does not fix:\n%s", out)
+	}
+	ops := `[{"op":"add","doc":"refund-worker","field":"systems","value":"[[Back Office]]"}]`
+	if code, _, errs := run(t, ops, append([]string{"propose", "--title", "refund-worker joins Back Office", "--ops", "-"}, p...)...); code != 0 {
+		t.Fatal(errs)
+	}
+	_, out, _ := run(t, "", append([]string{"status"}, p...)...)
+	if strings.Contains(out, "**Decide** on "+lint) || !strings.Contains(out, "Lint L3: [[refund-worker]] belongs to no system → [[") || !strings.Contains(out, "refund-worker joins Back Office]], proposed.") {
+		t.Fatalf("after the proposal:\n%s", out)
+	}
+}
+
+// Findings of one kind that share a repository form one Attention line, and one choice
+// decides them all in one act.
+func TestFindingsThatShareARepositoryShareALine(t *testing.T) {
+	testvault.Identity(t)
+	t.Setenv("CARTO_HOME", t.TempDir())
+	root := testvault.New(t)
+	folder := filepath.Join(root, "MyShop")
+	p := []string{"--project", folder, "--sim", filepath.Join(testvault.Repo(), "testdata", "prototype", "simulation.yaml")}
+	reindex := filepath.Join(folder, "Findings", "reindex job is in no entity.md")
+	src := testvault.Read(t, reindex)
+	if _, out, _ := run(t, "", append([]string{"choose", "reindex job is in no entity", "export job is in no entity", "2"}, p...)...); out != "" {
+		t.Fatal("a choice for a finding that does not exist")
+	}
+	options := regexp.MustCompile(`(?s)## Options\n.*?\n## History`)
+	src = options.ReplaceAllString(src, "## Options\n\n1. **Add it to the map** (recommended).\n2. **Waive.**\n\n## History")
+	os.WriteFile(reindex, []byte(src), 0o644)
+	text := strings.Replace(strings.Replace(src, "fnd-r31ndx", "fnd-grp001", 1), "server/cmd/reindex/main.go", "server/cmd/export/main.go", 1)
+	os.WriteFile(filepath.Join(folder, "Findings", "export job is in no entity.md"), []byte(text), 0o644)
+	testvault.Git(t, root, "add", "-A")
+	testvault.Git(t, root, "commit", "-q", "-m", "a second unmapped finding")
+	_, out, _ := run(t, "", append([]string{"status", "--json"}, p...)...)
+	want := "**Decide** on 2 unmapped entry points in myshop-api: [[export job is in no entity|server/cmd/export/main.go]] · [[reindex job is in no entity|server/cmd/reindex/main.go]]."
+	if !strings.Contains(out, want) {
+		t.Fatalf("no shared line:\n%s", out)
+	}
+	_, out, _ = run(t, "", append([]string{"block", "attention", "MyShop", "--json"}, p...)...)
+	if !strings.Contains(out, `"members": [`) {
+		t.Fatalf("the line has no members:\n%s", out)
+	}
+	before := testvault.Git(t, root, "rev-list", "--count", "HEAD")
+	if code, _, errs := run(t, "", append([]string{"choose", "reindex job is in no entity", "export job is in no entity", "2"}, p...)...); code != 0 {
+		t.Fatalf("choose for both: %s", errs)
+	}
+	if after := testvault.Git(t, root, "rev-list", "--count", "HEAD"); atoi(after) != atoi(before)+1 {
+		t.Fatalf("one choice made %d commits", atoi(after)-atoi(before))
+	}
+	for _, f := range []string{"reindex job is in no entity", "export job is in no entity"} {
+		if !strings.Contains(testvault.Read(t, filepath.Join(folder, "Findings", f+".md")), "[chosen:: 2]") {
+			t.Fatalf("%s has no choice", f)
+		}
 	}
 }

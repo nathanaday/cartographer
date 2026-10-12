@@ -1,6 +1,7 @@
 package work
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -57,7 +58,7 @@ func TestTasks(t *testing.T) {
 	}
 	commit(t, k, "work")
 	text := testvault.Read(t, k.Index().Paths[goal])
-	for _, want := range []string{"- [x] T4 [[inventory-service]]", "[commit:: 9a8b7c6]", "- [ ] T9 [[shop-web]] Show the currency code on the receipt [for:: DS-4] [after:: T5] ^t9", "[attempts:: 2]", "It is stuck and waits for the user."} {
+	for _, want := range []string{"- [x] T4 [[inventory-service]]", "[commit:: 9a8b7c6]", "- [ ] T9 [[shop-web]] Show the currency code on the receipt [for:: DS-4] [after:: T5] ^t9", "[attempts:: 2]", "It is stuck and waits for the user.", "[done:: 2026-10-09T11:00]", "updated: 2026-10-09T11:00:00"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("the goal lacks %q:\n%s", want, text)
 		}
@@ -138,5 +139,40 @@ func TestChooseAFindingOption(t *testing.T) {
 	}
 	if !strings.Contains(testvault.Read(t, filepath.Join(folder, "Findings", f+".md")), "[chosen:: 3] [by:: user]") {
 		t.Fatal("the choice was not recorded")
+	}
+}
+
+// An attempt counts only on an open task: a claim left behind by a finished session does
+// not make a done task fail.
+func TestAttemptOnADoneTask(t *testing.T) {
+	folder := setup(t)
+	k, _ := New(folder, now)
+	defer k.Writer().Abort()
+	if err := k.Attempt("Upkeep", "T1", "the runner ended"); err == nil || !strings.Contains(err.Error(), "closed") {
+		t.Fatalf("an attempt on a done task: %v", err)
+	}
+	if err := k.Attempt("Upkeep", "T3", "the runner ended"); err != nil {
+		t.Fatalf("an attempt on an open task: %v", err)
+	}
+}
+
+// The first upkeep task of a project makes its standing goal.
+func TestTheFirstUpkeepTaskMakesUpkeep(t *testing.T) {
+	folder := setup(t)
+	os.Remove(filepath.Join(folder, "Goals", "Upkeep.md"))
+	k, _ := New(folder, now)
+	if _, err := k.Add("Upkeep", "shop-api", "Remove the old field", map[string]string{"by": "user"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := k.Writer().Commit("add"); err != nil {
+		t.Fatal(err)
+	}
+	env, _ := core.LoadSim(filepath.Join(testvault.Repo(), "testdata", "prototype", "simulation.yaml"))
+	p, err := core.Load(folder, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.Standing("Upkeep") || len(p.Tasks["Upkeep"]) != 1 || p.S("Upkeep", "status") != "active" {
+		t.Fatalf("Upkeep: standing %v, %d tasks, %s", p.Standing("Upkeep"), len(p.Tasks["Upkeep"]), p.S("Upkeep", "status"))
 	}
 }

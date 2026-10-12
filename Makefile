@@ -10,7 +10,8 @@ build:
 # install puts the binary where the plugin's launcher (bin/carto) finds it.
 install:
 	mkdir -p $(HOME)/.cartographer/bin
-	go build $(LDFLAGS) -o $(HOME)/.cartographer/bin/$(BIN) ./cmd/$(BIN)
+	go build $(LDFLAGS) -o $(HOME)/.cartographer/bin/.$(BIN).new ./cmd/$(BIN)
+	mv -f $(HOME)/.cartographer/bin/.$(BIN).new $(HOME)/.cartographer/bin/$(BIN)
 
 vet:
 	go vet ./...

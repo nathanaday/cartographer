@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { actionArgs, chooseArgs, docName, Item, need, newArgs, parseUntil, projectOf, recommended, withoutActions } from "../src/logic";
+import { actionArgs, chooseArgs, deferArgs, docName, Item, need, newArgs, parseUntil, projectOf, recommended, withoutActions } from "../src/logic";
 
 const answer: Item = {
 	kind: "answer",
@@ -17,6 +17,11 @@ test("an option chooses through answer, choose, or lint", () => {
 	assert.deepEqual(chooseArgs(answer, "2"), ["answer", answer.key, "2", "--words", "option 2, chosen in Obsidian"]);
 	assert.deepEqual(chooseArgs({ ...answer, kind: "decide", key: "F" }, "1"), ["choose", "F", "1", "--words", "option 1, chosen in Obsidian"]);
 	assert.deepEqual(chooseArgs({ kind: "lint", key: "L1|invoice-worker", text: "" }, "2"), ["lint", "L1", "invoice-worker", "2"]);
+	const group: Item = { kind: "decide", key: "F1", text: "", members: ["F1", "F2"] };
+	assert.deepEqual(chooseArgs(group, "3"), ["choose", "F1", "F2", "3", "--words", "option 3, chosen in Obsidian"]);
+	assert.deepEqual(deferArgs(group, "2026-11-01"), ["defer", "F1", "F2", "2026-11-01"]);
+	assert.deepEqual(deferArgs({ kind: "answer", key: "Q", text: "", defer_key: "Q" }, "2026-11-01"), ["defer", "Q", "2026-11-01"]);
+	assert.equal(deferArgs({ kind: "approve-change", key: "C", text: "" }, "2026-11-01"), null);
 	assert.equal(recommended(answer)?.n, "1");
 	assert.equal(recommended({ ...answer, options: [{ n: "1", title: "x" }] }), null);
 });

@@ -115,3 +115,75 @@ func FindAny(now time.Time, phrases ...string) (Prompt, bool) {
 	}
 	return Prompt{}, false
 }
+
+var stopWords = map[string]bool{"a": true, "an": true, "the": true, "of": true, "to": true, "for": true, "and": true, "in": true, "on": true, "from": true, "with": true, "as": true, "by": true, "at": true, "its": true, "their": true, "is": true, "are": true}
+
+// words splits a text into lowercase words; a hyphen, a dot, and an underscore stay
+// inside a word, so that names such as p3-cloud stay whole.
+func words(s string) []string {
+	var out []string
+	for _, w := range strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
+		return !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' || r == '.' || r == '_' || r > 127)
+	}) {
+		if w = strings.Trim(w, ".-_"); w != "" {
+			out = append(out, w)
+		}
+	}
+	return out
+}
+
+// Change is what a prompt may name to decide on a change.
+type Change struct {
+	ID, Name, Title string
+	Creates         []string  // the documents the change creates
+	Proposed        time.Time // when the agent proposed it
+}
+
+var allWords = map[string]bool{"all": true, "every": true, "each": true, "both": true, "them": true}
+
+// Decides returns the newest recent prompt in which the user decides on a change: it holds
+// one of the verbs, and it names the change by its id, its name, every word of its title,
+// or a document it creates; or, after the change was proposed, it decides on them all.
+func Decides(now time.Time, verbs []string, c Change) (Prompt, bool) {
+	var need []string
+	for _, w := range words(c.Title) {
+		if !stopWords[w] && w != "suggested" {
+			need = append(need, w)
+		}
+	}
+	for _, p := range Recent(now) {
+		text := norm(p.Text)
+		verb := false
+		for _, v := range verbs {
+			verb = verb || strings.Contains(text, v)
+		}
+		if !verb {
+			continue
+		}
+		if strings.Contains(text, norm(c.ID)) || c.Name != "" && strings.Contains(text, norm(c.Name)) {
+			return p, true
+		}
+		have := map[string]bool{}
+		for _, w := range words(p.Text) {
+			have[w] = true
+		}
+		all := len(need) > 0
+		for _, w := range need {
+			all = all && have[w]
+		}
+		if all {
+			return p, true
+		}
+		for _, d := range c.Creates {
+			if d != "" && strings.Contains(" "+strings.Join(words(p.Text), " ")+" ", " "+strings.Join(words(d), " ")+" ") {
+				return p, true
+			}
+		}
+		for w := range have {
+			if allWords[w] && !c.Proposed.IsZero() && p.At.After(c.Proposed) {
+				return p, true
+			}
+		}
+	}
+	return Prompt{}, false
+}

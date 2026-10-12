@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -52,6 +53,9 @@ type Index struct {
 func NewIndex(folder string) (*Index, error) {
 	abs, _ := filepath.Abs(folder)
 	ix := &Index{Folder: abs, Paths: map[string]string{}, Types: map[string]string{}}
+	if _, err := os.Stat(abs); errors.Is(err, fs.ErrNotExist) {
+		return ix, nil
+	}
 	err := filepath.WalkDir(abs, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
 			return err
@@ -108,11 +112,15 @@ func apply(ix *Index, w *vault.Writer, op Op, now time.Time) ([]string, error) {
 		if _, exists := ix.Paths[strings.TrimSuffix(filepath.Base(path), ".md")]; exists {
 			return nil, fmt.Errorf("a document named %q exists", filepath.Base(path))
 		}
-		d, err := md.Parse(path, op.Text)
+		text := md.SetFields(op.Text, map[string]any{"created": stamp(now), "updated": stamp(now)})
+		d, err := md.Parse(path, text)
 		if err != nil {
 			return nil, err
 		}
-		w.Put(path, op.Text)
+		if d.Type == "project" && (ix.Project() != "" || filepath.Dir(path) != ix.Folder) {
+			return nil, errors.New("a project folder holds one project document, at its top")
+		}
+		w.Put(path, text)
 		ix.Paths[d.Name], ix.Types[d.Name] = path, d.Type
 		return []string{fmt.Sprintf("**create** %s [[%s]]", d.Type, d.Name)}, nil
 	case "add", "remove", "set":

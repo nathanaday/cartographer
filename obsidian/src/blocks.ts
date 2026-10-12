@@ -1,6 +1,6 @@
 import { MarkdownRenderChild, MarkdownRenderer, Notice } from "obsidian";
 import { runJSON } from "./cli";
-import { actionArgs, chooseArgs, docName, Item, need, recommended, withoutActions } from "./logic";
+import { actionArgs, chooseArgs, deferArgs, docName, Item, need, recommended, withoutActions } from "./logic";
 import type CartographerPlugin from "./main";
 import { askText, askUntil } from "./modals";
 
@@ -11,6 +11,9 @@ interface BlockOut {
 }
 
 /** One rendered cartographer-* block. It renders again after every act and every change of the map. */
+/** Attention shows its first lines, and the rest on request. */
+const FIRST = 10;
+
 export class BlockView extends MarkdownRenderChild {
 	private generation = 0;
 
@@ -75,8 +78,9 @@ export class BlockView extends MarkdownRenderChild {
 
 	private async attention(el: HTMLElement, project: string, items: Item[], deferred: Item[]): Promise<void> {
 		if (items.length === 0) el.createEl("p", { text: "Nothing waits for you." });
-		for (const item of items) {
-			const row = el.createDiv({ cls: "carto-item" });
+		const rest = el.createDiv();
+		for (const [i, item] of items.entries()) {
+			const row = (i < FIRST ? el : rest).createDiv({ cls: "carto-item" });
 			row.dataset.kind = item.kind;
 			await MarkdownRenderer.render(this.plugin.app, item.text, row.createDiv({ cls: "carto-item-text" }), this.sourcePath, this);
 			const acts = row.createDiv({ cls: "carto-actions" });
@@ -88,13 +92,21 @@ export class BlockView extends MarkdownRenderChild {
 			for (const a of item.actions ?? []) {
 				this.button(acts, a, () => this.action(project, item, a), a === "Approve" || a === "Land");
 			}
-			if (item.defer_key) {
-				const key = item.defer_key;
+			if (deferArgs(item, "")) {
 				this.button(acts, "Not now until…", async () => {
 					const until = await askUntil(this.plugin.app);
-					if (until) await this.plugin.act(project, ["defer", key, until], `Hidden until ${until}`);
+					const args = until ? deferArgs(item, until) : null;
+					if (args) await this.plugin.act(project, args, `Hidden until ${until}`);
 				});
 			}
+		}
+		if (items.length > FIRST) {
+			el.appendChild(rest);
+			rest.hide();
+			const more = this.button(el, `Show ${items.length - FIRST} more`, async () => {
+				rest.show();
+				more.remove();
+			});
 		}
 		if (deferred.length > 0) {
 			el.createEl("p", { cls: "carto-hint", text: `Deferred: ${deferred.length} (${deferred.map((d) => "until " + d.defer).join(", ")}).` });

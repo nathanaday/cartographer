@@ -351,16 +351,16 @@ func findings(p0, p1 *core.Project, r Report, out *Outcome, w *vault.Writer, now
 		if d.Result == "convergence" {
 			continue
 		}
-		key := strings.Trim(strings.TrimSpace(d.Dependency), "`")
+		key := depKey(d.Dependency)
 		if hasFinding(p1, d.Result, r.Target, "", key) {
 			continue
 		}
-		title := d.Title
-		if title == "" {
+		name := title(d.Title)
+		if name == "" {
 			if d.Result == "divergence" {
-				title = fmt.Sprintf("%s uses %s without declaring it", r.Target, safe(key))
+				name = title(fmt.Sprintf("%s uses %s without declaring it", r.Target, key))
 			} else {
-				title = fmt.Sprintf("%s does not use %s", r.Target, safe(key))
+				name = title(fmt.Sprintf("%s does not use %s", r.Target, key))
 			}
 		}
 		what := "The code has a dependency that the map does not declare."
@@ -369,10 +369,10 @@ func findings(p0, p1 *core.Project, r Report, out *Outcome, w *vault.Writer, now
 		}
 		body := fmt.Sprintf("\n## Finding\n\n%s %s: %s.\n\n## Evidence\n\n- %s\n\n## Options\n\n%s\n## History\n\n- %s opened by [[%s]].\n",
 			what, "[["+r.Target+"]]", d.Dependency, d.Evidence, defaultOptions(d.Result, d.Dependency, r.Target), at, check)
-		if err := create(p1, w, title, d.Result, r.Target, "", "", key, check, now, body); err != nil {
+		if err := create(p1, w, name, d.Result, r.Target, "", "", key, check, now, body); err != nil {
 			return err
 		}
-		out.Opened = append(out.Opened, title)
+		out.Opened = append(out.Opened, name)
 	}
 	return nil
 }
@@ -380,6 +380,33 @@ func findings(p0, p1 *core.Project, r Report, out *Outcome, w *vault.Writer, now
 var unsafeName = regexp.MustCompile(`[\\/:*?"<>|#^\[\]]`)
 
 func safe(s string) string { return strings.TrimSpace(unsafeName.ReplaceAllString(s, "-")) }
+
+var scheme = regexp.MustCompile(`\b[a-z][a-z0-9+.-]*://`)
+
+// title makes a finding's name from a text that may hold links, code, and paths: it keeps
+// the words, shows a path's folders with ›, and keeps it short enough for a file name.
+func title(s string) string {
+	s = scheme.ReplaceAllString(s, "")
+	s = strings.NewReplacer("[[", "", "]]", "", "`", "", "<", "", ">", "", " /", " ", "/", " › ").Replace(s)
+	s = strings.Join(strings.Fields(safe(s)), " ")
+	if r := []rune(s); len(r) > 120 {
+		s = string(r[:120])
+		if i := strings.LastIndex(s, " "); i > 60 {
+			s = s[:i]
+		}
+		s = strings.TrimRight(s, " -,(›")
+	}
+	return s
+}
+
+// depKey is the name of a dependency without the description a checker may add after it.
+func depKey(s string) string {
+	s = strings.TrimSpace(s)
+	if i := strings.Index(s, " ("); i > 0 {
+		s = s[:i]
+	}
+	return strings.Trim(strings.TrimSpace(s), "`")
+}
 
 func hasFinding(p *core.Project, kind, entity, clause, key string) bool {
 	for _, n := range p.Of("finding") {
@@ -526,16 +553,16 @@ func FinishSweep(folder string, env core.Env, sweep string, coverage []Coverage,
 		if hasFinding(p, "unmapped", "", "", key) {
 			continue
 		}
-		title := c.Title
-		if title == "" {
-			title = safe(strings.Trim(c.Entry, "`")) + " is in no entity"
+		name := title(c.Title)
+		if name == "" {
+			name = title(strings.Trim(c.Entry, "`") + " in " + filepath.Base(c.Repository) + " is in no entity")
 		}
 		body := fmt.Sprintf("\n## Finding\n\n%s in %s is an entry point that no entity lists in `entry`.\n\n## Evidence\n\n- %s\n\n## Options\n\n%s\n## History\n\n- %s opened by the coverage check of [[%s]].\n",
 			c.Entry, c.Repository, c.Evidence, defaultOptions("unmapped", "", ""), now.Format("2006-01-02 15:04"), sweep)
-		if err := create(p, w, title, "unmapped", "", "", "", key, sweep, now, body); err != nil {
+		if err := create(p, w, name, "unmapped", "", "", "", key, sweep, now, body); err != nil {
 			return nil, err
 		}
-		out.Opened = append(out.Opened, title)
+		out.Opened = append(out.Opened, name)
 	}
 	if err := w.Flush(); err != nil {
 		return nil, err

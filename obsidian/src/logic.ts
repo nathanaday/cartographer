@@ -16,6 +16,8 @@ export interface Item {
 	entities?: string[];
 	defer_key?: string;
 	defer?: string;
+	/** A line for several findings: an option applies to each. */
+	members?: string[];
 }
 
 /** What an action needs from the user before it runs. */
@@ -67,13 +69,19 @@ export function chooseArgs(item: Item, n: string): string[] {
 		case "answer":
 			return ["answer", item.key, n, "--words", `option ${n}, chosen in Obsidian`];
 		case "decide":
-			return ["choose", item.key, n, "--words", `option ${n}, chosen in Obsidian`];
+			return ["choose", ...(item.members ?? [item.key]), n, "--words", `option ${n}, chosen in Obsidian`];
 		case "lint": {
 			const [rule, entity] = item.key.split("|");
 			return ["lint", rule ?? "", entity ?? "", n];
 		}
 	}
 	throw new Error(`a ${item.kind} line has no options`);
+}
+
+/** The `carto` arguments of "Not now until…", or null when the line has none. */
+export function deferArgs(item: Item, until: string): string[] | null {
+	if (item.members) return ["defer", ...item.members, until];
+	return item.defer_key ? ["defer", item.defer_key, until] : null;
 }
 
 /** The recommended option of a line, or null. */

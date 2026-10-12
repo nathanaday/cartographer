@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,6 +31,7 @@ func (o *Obligation) Pending() bool { return o.Goal != "" }
 // FindingState is what the core computes about a finding document.
 type FindingState struct {
 	Status, Contract, Resolved, Chosen, Entity, Kind string
+	ResolvedAt                                       time.Time // when it was resolved, for Since your last visit
 	Resolution                                       []string
 }
 
@@ -462,7 +464,7 @@ func (p *Project) computeFindings() {
 				case o.Status == "waived":
 					st.Status = "waived"
 				case o.Status == "met" || o.Status == "met-none":
-					st.Status, st.Resolved = "resolved", o.Result.Date.Format("2006-01-02")
+					st.Status, st.Resolved, st.ResolvedAt = "resolved", o.Result.Date.Format("2006-01-02"), o.Result.Date
 				}
 			}
 		} else {
@@ -490,9 +492,9 @@ func (p *Project) computeFindings() {
 			})
 			switch {
 			case kind == "divergence" && len(about) > 0 && contains(md.Names(p.FM(ent, "interfaces")), about[0]):
-				st.Status, st.Resolved = "resolved", opts["on"]
+				st.Status, st.Resolved, st.ResolvedAt = "resolved", opts["on"], md.Time(opts["on"])
 			case len(rows) > 0 && (rows[len(rows)-1].Result == "convergence" || rows[len(rows)-1].Result == "mapped"):
-				st.Status, st.Resolved = "resolved", rows[len(rows)-1].Date.Format("2006-01-02")
+				st.Status, st.Resolved, st.ResolvedAt = "resolved", rows[len(rows)-1].Date.Format("2006-01-02"), rows[len(rows)-1].Date
 			}
 			if p.WaiverFor(target, "dependency `"+key+"`", 0, nil) != nil {
 				st.Status = "waived"
@@ -700,6 +702,15 @@ func (p *Project) Affects(g string) []string {
 		set[o.Entity] = true
 	}
 	return sortedKeys(set)
+}
+
+var reviewLine = regexp.MustCompile(`(?m)^- \d{4}-\d\d-\d\d \d\d:\d\d (ready to land|not ready to land|T\d+ added)`)
+
+// Reviewed reports whether the finished review of a goal passed: of its Log's lines "ready to
+// land", "not ready to land", and "Tn added", the last is "ready to land".
+func (p *Project) Reviewed(g string) bool {
+	ms := reviewLine.FindAllStringSubmatch(md.Section(p.Docs[g].Body, "Log"), -1)
+	return len(ms) > 0 && ms[len(ms)-1][1] == "ready to land"
 }
 
 // ReadyToLand returns, for Upkeep, the done tasks whose branch has not landed; for a

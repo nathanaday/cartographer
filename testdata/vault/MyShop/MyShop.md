@@ -44,7 +44,7 @@ Customers browse products, get recommendations, and pay. The back office keeps s
 ```
 
 > [!example] What the plugin shows
-> - **Land** T2 of [[Upkeep]]: Store unit cost as integer cents at import, and convert the existing rows. The reviewer passed; myshop-inventory, branch `upkeep/t2`.
+> - **Land** T2 of [[Upkeep]]: Store unit cost as integer cents at import, and convert the existing rows. Done at 3c4d5e6; myshop-inventory, branch `upkeep/t2`.
 >   Land · Request changes · **Not now until…**
 > - **Answer** [[Should invoice-worker adopt the Shop Data Schema]]. Unblocks T6 of [[Add currency to order lines]].
 >   1. Adopt ★ · 2. Do not adopt, and do T6 anyway · 3. Do not adopt, and drop T6 · **Accept recommended** · **Not now until…**

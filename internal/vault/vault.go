@@ -254,6 +254,57 @@ func CommitDirty(root string, rels []string, message string) error {
 	return nil
 }
 
+// Snapshot commits the Markdown files under folder that changed outside an act: a person's
+// edits in Obsidian, or an agent's edits of prose. It returns how many it committed.
+func Snapshot(root, folder string) (int, error) {
+	if !IsRepo(root) {
+		return 0, nil
+	}
+	unlock, err := Lock(root)
+	if err != nil {
+		return 0, err
+	}
+	defer unlock()
+	rel, err := filepath.Rel(root, folder)
+	if err != nil {
+		return 0, err
+	}
+	out, err := git(root, "--no-optional-locks", "status", "--porcelain", "-z", "--untracked-files=all", "--", filepath.ToSlash(rel))
+	if err != nil {
+		return 0, fmt.Errorf("git status: %v: %s", err, out)
+	}
+	var files []string
+	entries := strings.Split(out, "\x00")
+	for i := 0; i < len(entries); i++ {
+		e := entries[i]
+		if len(e) < 4 {
+			continue
+		}
+		paths := []string{e[3:]}
+		if (e[0] == 'R' || e[0] == 'C') && i+1 < len(entries) {
+			i++
+			paths = append(paths, entries[i]) // the old path of a rename
+		}
+		for _, path := range paths {
+			if strings.HasSuffix(path, ".md") && !strings.HasPrefix(path, ".carto/") {
+				files = append(files, path)
+			}
+		}
+	}
+	if len(files) == 0 {
+		return 0, nil
+	}
+	n := len(files)
+	if _, ok := At(root, "HEAD", ".carto/.gitignore"); !ok {
+		files = append(files, ".carto/.gitignore")
+	}
+	msg := fmt.Sprintf("%d files edited by hand", n)
+	if n == 1 {
+		msg = "1 file edited by hand"
+	}
+	return n, CommitDirty(root, files, msg)
+}
+
 // IsAncestor reports whether commit a is an ancestor of commit b.
 func IsAncestor(root, a, b string) bool {
 	_, err := git(root, "merge-base", "--is-ancestor", a, b)

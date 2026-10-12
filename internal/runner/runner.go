@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/nathanaday/cartographer/internal/core"
+	"github.com/nathanaday/cartographer/internal/land"
 	"github.com/nathanaday/cartographer/internal/md"
 	"github.com/nathanaday/cartographer/internal/vault"
 	"github.com/nathanaday/cartographer/internal/work"
@@ -28,9 +29,10 @@ import (
 
 // DefaultAgent is the command of a headless Claude Code session. It edits and runs
 // commands without prompts only for the tools it lists.
+// {dirs} becomes one --add-dir for each folder of Runner.Dirs.
 var DefaultAgent = []string{"claude", "-p", "{prompt}", "--output-format", "json", "--session-id", "{session}",
 	"--permission-mode", "acceptEdits",
-	"--allowedTools", "Bash,Read,Edit,Write,Grep,Glob,Task,mcp__plugin_cartographer_carto"}
+	"--allowedTools", "Bash,Read,Edit,Write,Grep,Glob,Task,mcp__plugin_cartographer_carto", "{dirs}"}
 
 // Runner runs the work of one project.
 type Runner struct {
@@ -45,6 +47,7 @@ type Runner struct {
 	Budget time.Duration // a task's time budget
 	Max    int           // agents at once
 	Lease  time.Duration // renewed each third of it; each renewal is a commit
+	Dirs   []string      // folders an agent works in besides its own: the vault and the clones
 	host   string
 	mu     sync.Mutex
 }
@@ -60,6 +63,7 @@ type Job struct {
 	Session string
 	Log     string // the session log document's name
 	Policy  string // land: the project's landing policy
+	Local   bool   // land: the project merges in the clones, with no pull requests
 }
 
 func newUUID() string {
@@ -152,8 +156,17 @@ func (r *Runner) claim(j *Job) error {
 	return r.write(r.claimPath(j.Session), b, "claim for session "+j.Log)
 }
 
+// unclaim ends a job's claim. A claim left behind holds its task until the next runner, so
+// it tries again while another write holds the vault.
 func (r *Runner) unclaim(j *Job) {
-	r.write(r.claimPath(j.Session), nil, "end the claim of session "+j.Log)
+	var err error
+	for wait := time.Second; wait <= 9*time.Second; wait *= 3 {
+		if err = r.write(r.claimPath(j.Session), nil, "end the claim of session "+j.Log); err == nil {
+			return
+		}
+		time.Sleep(wait)
+	}
+	r.say("could not end the claim of %s: %v", j.Log, err)
 }
 
 // sweepStale removes the claims left by a runner that ended, and counts each claimed
@@ -178,7 +191,14 @@ func (r *Runner) sweepStale() error {
 		}
 		k.Writer().Remove(f)
 	}
-	_, err = k.Writer().Commit(fmt.Sprintf("remove %d claims of an ended runner; %d tasks count a failed attempt", len(files), n))
+	claims, tasks := "claims", "tasks count"
+	if len(files) == 1 {
+		claims = "claim"
+	}
+	if n == 1 {
+		tasks = "task counts"
+	}
+	_, err = k.Writer().Commit(fmt.Sprintf("remove %d %s of an ended runner; %d %s a failed attempt", len(files), claims, n, tasks))
 	return err
 }
 
@@ -215,8 +235,8 @@ func Queue(p *core.Project) []*Job {
 				}
 			}
 		}
-		if _, whole := p.ReadyToLand(g); whole {
-			landing = append(landing, &Job{Kind: "land", Goal: g, Policy: p.S(p.Project, "landing")})
+		if _, whole := p.ReadyToLand(g); whole && (!p.Reviewed(g) || p.S(p.Project, "landing") == "agent") {
+			landing = append(landing, &Job{Kind: "land", Goal: g, Policy: p.S(p.Project, "landing"), Local: !land.PullRequests(p)})
 		}
 		if !p.Standing(g) {
 			if d, k := p.GoalTasks(g, time.Time{}); k > 0 && d == k {
@@ -310,6 +330,12 @@ func (r *Runner) Run(ctx context.Context, once bool) error {
 				continue
 			}
 			if err := r.start(ctx, p, j); err != nil {
+				var held *busyError
+				if errors.As(err, &held) {
+					r.say("wait with %s: %v", key, err)
+					tried[key] = true
+					continue
+				}
 				r.say("could not start %s: %v", key, err)
 				if j.Task != nil {
 					r.attempt(j, err.Error())
@@ -365,8 +391,12 @@ func (r *Runner) attempt(j *Job, why string) {
 		return
 	}
 	defer k.Writer().Abort()
-	if k.Attempt(j.Goal, j.Task.ID, why) == nil {
-		k.Writer().Commit(fmt.Sprintf("%s of %s failed", j.Task.ID, j.Goal))
+	if err := k.Attempt(j.Goal, j.Task.ID, why); err != nil {
+		r.say("no attempt counted for %s of %s: %v", j.Task.ID, j.Goal, err)
+		return
+	}
+	if _, err := k.Writer().Commit(fmt.Sprintf("%s of %s failed", j.Task.ID, j.Goal)); err != nil {
+		r.say("could not record the attempt of %s of %s: %v", j.Task.ID, j.Goal, err)
 	}
 }
 
@@ -388,7 +418,7 @@ func (r *Runner) start(ctx context.Context, p *core.Project, j *Job) error {
 		if clone == "" {
 			return fmt.Errorf("no local clone of %s on this machine; run carto setup --root", j.Repo)
 		}
-		dir, err := r.worktree(clone, j.Repo, j.Branch, p.Default)
+		dir, err := r.worktree(clone, j.Repo, j.Branch, p.Default, !land.PullRequests(p))
 		if err != nil {
 			return err
 		}
@@ -402,7 +432,9 @@ func (r *Runner) start(ctx context.Context, p *core.Project, j *Job) error {
 	return r.claim(j)
 }
 
-func (r *Runner) worktree(clone, repo, branch, base string) (string, error) {
+// worktree checks out branch in its own folder. A new branch starts at origin's base, or at
+// the clone's own base when the project lands locally.
+func (r *Runner) worktree(clone, repo, branch, base string, local bool) (string, error) {
 	dir := filepath.Join(r.Home, "worktrees", repo, strings.ReplaceAll(branch, "/", "-"))
 	if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
 		return dir, nil
@@ -410,13 +442,24 @@ func (r *Runner) worktree(clone, repo, branch, base string) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
 		return "", err
 	}
+	if list, err := exec.Command("git", "-C", clone, "worktree", "list", "--porcelain").Output(); err == nil {
+		at := ""
+		for _, l := range strings.Split(string(list), "\n") {
+			if strings.HasPrefix(l, "worktree ") {
+				at = strings.TrimPrefix(l, "worktree ")
+			}
+			if l == "branch refs/heads/"+branch && !samePath(at, dir) {
+				return "", &busyError{branch, at}
+			}
+		}
+	}
 	exists := exec.Command("git", "-C", clone, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch).Run() == nil
 	var args []string
 	if exists {
 		args = []string{"-C", clone, "worktree", "add", dir, branch}
 	} else {
 		start := base
-		if exec.Command("git", "-C", clone, "rev-parse", "--verify", "--quiet", "origin/"+base).Run() == nil {
+		if !local && exec.Command("git", "-C", clone, "rev-parse", "--verify", "--quiet", "origin/"+base).Run() == nil {
 			start = "origin/" + base
 		}
 		args = []string{"-C", clone, "worktree", "add", "-b", branch, dir, start}
@@ -425,6 +468,19 @@ func (r *Runner) worktree(clone, repo, branch, base string) (string, error) {
 		return "", fmt.Errorf("git worktree add: %v: %s", err, bytes.TrimSpace(out))
 	}
 	return dir, nil
+}
+
+func samePath(a, b string) bool {
+	ra, _ := filepath.EvalSymlinks(a)
+	rb, _ := filepath.EvalSymlinks(b)
+	return a == b || ra != "" && ra == rb
+}
+
+// busyError says that another session works on the branch, in a worktree of its own.
+type busyError struct{ branch, at string }
+
+func (e *busyError) Error() string {
+	return fmt.Sprintf("the branch %s is checked out at %s, by another session", e.branch, e.at)
 }
 
 // Prompt is what the agent of a job is told.
@@ -439,6 +495,16 @@ func Prompt(folder string, j *Job) string {
 			"tasks, and do not edit Cartographer documents directly. End with one line.",
 			folder, j.Goal, j.Task.ID, j.Task.Target, j.Task.Text, j.Branch, j.Repo)
 	case "land":
+		if j.Local {
+			end := "Do not land: the landing policy is user, so the user lands the goal from Attention."
+			if j.Policy == "agent" {
+				end = "Then land it with `carto land \"" + j.Goal + "\"`, check the goal at the default branch, and close it."
+			}
+			return fmt.Sprintf("You are a Cartographer agent working unattended. Project: %s. Every task of the goal [[%s]] is done. "+
+				"Follow the carto-goal skill's Land steps up to the merge: rebase each branch on the clone's own default branch (not origin's), re-check stale pending obligations, "+
+				"send the reviewer, and add its findings as tasks. This project has no pull requests (pull_requests: false): do not push and do not "+
+				"open any. Log \"ready to land\" with the branches. %s End with one line.", folder, j.Goal, end)
+		}
 		if j.Policy == "agent" {
 			return fmt.Sprintf("You are a Cartographer agent working unattended. Project: %s. Every task of the goal [[%s]] is done. "+
 				"Follow the carto-goal skill's Land and close steps: rebase, re-check stale pending obligations, review, open the pull requests, "+
@@ -466,11 +532,19 @@ func (r *Runner) command(j *Job) []string {
 	if len(agent) == 0 {
 		agent = DefaultAgent
 	}
-	out := make([]string, len(agent))
-	for i, a := range agent {
+	var out []string
+	for _, a := range agent {
+		if a == "{dirs}" {
+			for _, d := range r.Dirs {
+				if d != j.Dir {
+					out = append(out, "--add-dir", d)
+				}
+			}
+			continue
+		}
 		a = strings.ReplaceAll(a, "{prompt}", Prompt(r.Folder, j))
 		a = strings.ReplaceAll(a, "{session}", j.Session)
-		out[i] = a
+		out = append(out, a)
 	}
 	return out
 }
@@ -489,14 +563,21 @@ func (r *Runner) exec(ctx context.Context, j *Job) (string, string) {
 	cmd := exec.CommandContext(c, argv[0], argv[1:]...)
 	cmd.Dir = j.Dir
 	cmd.Env = append(os.Environ(), "CARTO_SESSION="+j.Session, "CARTO_PROJECT="+r.Folder)
+	if os.Getenv("CARTO_BIN") == "" {
+		if self, err := os.Executable(); err == nil {
+			cmd.Env = append(cmd.Env, "CARTO_BIN="+self)
+		}
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	r.say("start %s %s%s in %s", j.Kind, j.Goal, func() string {
-		if j.Task != nil {
-			return " " + j.Task.ID
-		}
-		return ""
-	}(), j.Dir)
+	what := j.Kind
+	if j.Goal != "" {
+		what += " " + j.Goal
+	}
+	if j.Task != nil {
+		what += " " + j.Task.ID
+	}
+	r.say("start %s in %s", what, j.Dir)
 	err := cmd.Run()
 	var res agentResult
 	json.Unmarshal(stdout.Bytes(), &res)

@@ -23,7 +23,7 @@ A check verifies the obligations of one entity at one commit. A sweep checks the
 1. `record` with `action: start_sweep`. Keep the name.
 2. Call `attention` and read the sweep queue in Health. Order the entities: those an active goal affects, then those with recent commits, then the rest.
 3. For each entity, check as above with `sweep` set to the sweep's name. Run several checkers in parallel when they read different clones.
-4. Coverage: for each repository of the project, list its entry points and deploy units (main packages, Dockerfiles, job and service definitions in infrastructure code, scripts that CI or a scheduler runs). Mark each `mapped` when an entity lists it in `entry`, else `unmapped`, with the evidence.
+4. Coverage: for each repository of the project, list what runs outside a developer's machine: the entry points of what ships or deploys (a main package or script that a package, an image, a unit, or a job runs), the deploy units (an image that is deployed, a service or job that infrastructure code defines), and the scripts that CI or a scheduler runs. A tool a person runs by hand, a build file, a local development setup (such as a compose file for local services), and the infrastructure code itself are not entry points. Mark each `mapped` when an entity lists it in `entry`, else `unmapped`, with the evidence. Leave out what the project's Waivers already accept.
 5. `record` with `action: finish_sweep`, the sweep name, the coverage rows, and one note for what the sweep did not reach.
 
 ## Rules

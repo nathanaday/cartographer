@@ -456,7 +456,7 @@ class Project:
         for n in self.of("finding"):
             kind = self.fm(n, "kind")
             ent = (names(self.fm(n, "entity")) or [""])[0]
-            st, contract, resolved = "open", "", ""
+            st, contract, resolved, resolved_at = "open", "", "", None
             if kind == "violation":
                 (doc, cid), = links(self.fm(n, "clause"))
                 contract = doc if self.docs[doc].type == "contract" else ""
@@ -466,7 +466,7 @@ class Project:
                 elif o.status == "waived":
                     st = "waived"
                 elif o.status in ("met", "met-none"):
-                    st, resolved = "resolved", o.result.date.date().isoformat()
+                    st, resolved, resolved_at = "resolved", o.result.date.date().isoformat(), o.result.date
             else:
                 key = str(self.fm(n, "key", ""))
                 target = ent or self.project
@@ -475,14 +475,15 @@ class Project:
                 rows = sorted(r for r in self.dependencies.get(target, []) if key.split(":")[-1] in r[2].replace("`", ""))
                 if kind == "divergence" and about and about[0] in names(self.fm(ent, "interfaces")):
                     st, resolved = "resolved", str(opts.get("on", ""))
+                    resolved_at = when(resolved) if resolved[:4].isdigit() else None
                 elif rows and rows[-1][3] in ("convergence", "mapped"):
-                    st, resolved = "resolved", rows[-1][0].date().isoformat()
+                    st, resolved, resolved_at = "resolved", rows[-1][0].date().isoformat(), rows[-1][0]
                 if self.waiver_for(target, f"dependency `{key}`"):
                     st = "waived"
             chosen = fields(section(self.docs[n].body, "Options")).get("chosen")
             res = [f"[[{t['goal']}#^{t['block']}]]" for g in self.tasks for t in self.tasks[g] if n in names(t["f"].get("finding", ""))]
             res += [f"[[{g}]]" for g in self.of("goal") if n in names(self.fm(g, "resolves"))]
-            self.finding[n] = {"status": st, "contract": f"[[{contract}]]" if contract else "", "resolved": resolved,
+            self.finding[n] = {"status": st, "contract": f"[[{contract}]]" if contract else "", "resolved": resolved, "resolved_at": resolved_at,
                                "resolution": res, "chosen": chosen, "entity": ent, "kind": kind}
 
     # ---------- goals ----------
@@ -809,6 +810,12 @@ def r_progress(P, g):
     return out
 
 
+def reviewed(P, g):
+    """The last of the Log's "ready to land", "not ready to land", and "Tn added" lines is "ready to land"."""
+    ms = re.findall(r"^- \d{4}-\d\d-\d\d \d\d:\d\d (ready to land|not ready to land|T\d+ added)", section(P.docs[g].body, "Log"), re.M)
+    return bool(ms) and ms[-1] == "ready to land"
+
+
 def ready_to_land(P, g):
     """Goal: all tasks done and a repository not landed. Upkeep: done tasks whose own branch has not landed."""
     if P.fm(g, "standing"):
@@ -844,7 +851,7 @@ def r_goals(P, p):
                      " · ".join(wait) or "—", agents, str(P.fm(g, "updated"))[:16].replace("T", " ")))
     q = queue(P)
     return table(["Goal", "Status", "Progress", "Ready", "Waiting on you", "Agents", "Last activity"], rows) + [
-        "", f"Run queue: {len(q['tasks'])} ready task{'s' if len(q['tasks']) != 1 else ''} · {len(P.claims())} agents at work of {P.fm(P.project, 'max_agents', 3)} · "
+        "", f"Run queue: {len(q['tasks'])} ready task{'s' if len(q['tasks']) != 1 else ''} · {len(P.claims())} agent{'s' if len(P.claims()) != 1 else ''} at work of {P.fm(P.project, 'max_agents', 3)} · "
             f"{q['sweep']} obligations to sweep, next sweep {when(P.sim['next_sweep']):%Y-%m-%d %H:%M}. **Run now**"]
 
 
@@ -877,9 +884,9 @@ def r_attention(P, p):
                  [f"- **Approve** the draft goal {L(g)}. Starts {len(P.tasks[g])} tasks.", "  Approve · Drop · **Not now until…**"], P.fm(g, "defer")))
         if P.fm(g, "standing") and P.fm(P.project, "landing") == "user":
             for t in ready_to_land(P, g):
-                put((1, when(t["f"].get("done")), [f"- **Land** {t['id']} of {L(g)}: {t['text']}. The reviewer passed; {P.task_repo(t)}, branch `{P.task_branch(t)}`.",
+                put((1, when(t["f"].get("done")), [f"- **Land** {t['id']} of {L(g)}: {t['text'].removesuffix('.')}. Done at {t['f']['commit'][:7]}; {P.task_repo(t)}, branch `{P.task_branch(t)}`.",
                                                    "  Land · Request changes · **Not now until…**"], None))
-        elif ready_to_land(P, g) and P.fm(P.project, "landing") == "user":
+        elif ready_to_land(P, g) and P.fm(P.project, "landing") == "user" and reviewed(P, g):
             m, n = P.goal_progress(g)
             put((len(P.tasks[g]), P.now, [f"- **Land** {L(g)}: reviewer passed; obligations {m}/{n} met on the branch; " +
                  ", ".join(r for r, b in P.goal_branches(g).items() if b["state"] != "landed") + ".", "  Land · Request changes · **Not now until…**"], None))
@@ -929,7 +936,8 @@ def r_health(P, p):
                 if task["box"] == "x":
                     state = "landed" if P.landed(P.task_repo(task), P.task_branch(task)) else "done, waiting for you to land"
                 else:
-                    state = "an agent works on it" if c else "waiting in the run queue"
+                    b = P.blocked(task)
+                    state = "an agent works on it" if c else f"waiting for your answer to {L(b[0])}" if b else "waiting in the run queue"
                 where = f" → {doc} {task['id']}, {state}"
             else:
                 where = f" → {res[0]} ({P.goal_status(doc)}" + (f", deferred until {P.fm(doc, 'defer')}" if P.fm(doc, "defer") else "") + ")"
@@ -968,6 +976,11 @@ def r_since(P, p):
         if (m0, d0) != (m1, d1):
             out.append(f"- {L(g)}: obligations {m0}/{n0} → {m1}/{n1}, tasks {d0}/{k0} → {d1}/{k1}.")
     for g in P.of("goal"):
+        closes = re.findall(r"^- (\d{4}-\d\d-\d\d \d\d:\d\d) every obligation met and every task closed", section(P.docs[g].body, "Log"), re.M)
+        if P.fm(g, "status") == "done" and closes and dt.datetime.strptime(closes[-1], "%Y-%m-%d %H:%M") > lv:
+            follow = ("\n" + section(P.docs[g].body, "Task details")).count("\n- After the goal lands:")
+            out.append(f"- Closed: {L(g)}" + (f", with {follow} follow-up{'s' if follow != 1 else ''} for after the landing in its Task details" if follow else "") + ".")
+    for g in P.of("goal"):
         for at, repo, sha, task in P.landings(g):
             if at > lv:
                 out.append(f"- Landed: {repo}" + (f" ({task})" if task else "") + f" of {L(g)}, at {sha}.")
@@ -983,9 +996,16 @@ def r_since(P, p):
         return ", ".join(f"{L(e)} ({len(ids)}{', its first check' if all(P.status_at(o, lv)[0] == 'unverified' for o in P.active_of(e)) and len(ids) > 3 else ': ' + ', '.join(ids)})"
                          for e, ids in d.items()) or "none"
     out.append("- Newly met on the default branch: " + grouped(newly["met"]) + ". Newly violated: " + grouped(newly["violated"]) + ".")
-    opened = [n for n in P.finding if when(P.fm(n, "found")) > lv]
-    resolved = [n for n, f in P.finding.items() if f["status"] == "resolved" and f["resolved"][:4].isdigit() and when(f["resolved"]) > lv]
-    out.append("- Findings opened: " + (" · ".join(L(f) for f in opened) or "none") + ". Resolved: " + (" · ".join(L(f) for f in resolved) or "none") + ".")
+    opened = [n for n in P.finding if when(P.fm(n, "created") or P.fm(n, "found")) > lv]
+    resolved = [n for n, f in P.finding.items() if f["status"] == "resolved" and f["resolved_at"] and f["resolved_at"] > lv]
+    def findings(ns):
+        if len(ns) <= 5:
+            return " · ".join(L(f) for f in ns) or "none"
+        kinds = [("violation", "violation", "violations"), ("divergence", "undeclared dependency", "undeclared dependencies"),
+                 ("absence", "missing relation", "missing relations"), ("unmapped", "unmapped entry point", "unmapped entry points")]
+        parts = [f"{k} {one if k == 1 else many}" for kind, one, many in kinds if (k := sum(P.finding[n]["kind"] == kind for n in ns))]
+        return f"{len(ns)} ({', '.join(parts)}; Health lists them)"
+    out.append("- Findings opened: " + findings(opened) + ". Resolved: " + findings(resolved) + ".")
     answered = [q for q in P.of("question") if P.fm(q, "answered") and when(P.fm(q, "answered")) > lv]
     out.append("- Questions answered: " + (" · ".join(L(q) for q in answered) or "none") + ".")
     return out
